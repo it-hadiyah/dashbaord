@@ -208,8 +208,10 @@ async function handleApi(req, res, url, p) {
   }
   if (p === '/api/config' && method === 'GET') return json(res, 200, loadConfig());
   if (p === '/api/managers' && method === 'GET') {
+    const ap = auth.approversOf(user);
+    if (ap.restricted) return json(res, 200, { restricted: true, list: ap.list.map((m, i) => ({ username: m.username, name: m.name, department: m.department, isMine: i === 0 })) });
     const mine = (auth.find(user.username) || {}).managerUsername || '';
-    return json(res, 200, auth.listManagers().filter((m) => m.username !== user.username).map((m) => ({ username: m.username, name: m.name, department: m.department, isMine: m.username === mine })));
+    return json(res, 200, { restricted: false, list: auth.listManagers().filter((m) => m.username !== user.username).map((m) => ({ username: m.username, name: m.name, department: m.department, isMine: m.username === mine })) });
   }
 
   // --- إدارة النظام ---
@@ -218,6 +220,7 @@ async function handleApi(req, res, url, p) {
     if (p === '/api/admin/users' && method === 'GET') return json(res, 200, auth.listUsers());
     if (p === '/api/admin/settings' && method === 'GET') return json(res, 200, auth.getSettings());
     if (p === '/api/admin/settings' && method === 'PUT') { try { const b = JSON.parse(await readBody(req, 20000)); const st = auth.setSettings(b); store.audit({ action: 'settings-update', by: user.username, defaultTemplates: st.defaultTemplates }); return json(res, 200, st); } catch (e) { return json(res, 400, { error: e.message }); } }
+    if (p === '/api/admin/users/auto-approvers' && method === 'POST') { const n = auth.autoApprovers(); store.audit({ action: 'approvers-auto', by: user.username, count: n }); return json(res, 200, { count: n }); }
     if (p === '/api/admin/audit' && method === 'GET') return json(res, 200, store.readAudit(Math.min(500, parseInt(url.searchParams.get('n'), 10) || 150)));
     try {
       if (p === '/api/admin/users' && method === 'POST') {
@@ -228,7 +231,7 @@ async function handleApi(req, res, url, p) {
       const m = p.match(/^\/api\/admin\/users\/([a-z0-9._-]+)(\/password)?$/);
       if (m) {
         if (m[2] && method === 'POST') { const b = JSON.parse(await readBody(req, 20000)); await auth.setPassword(m[1], b.password); store.audit({ action: 'password-reset', by: user.username, user: m[1] }); return json(res, 200, { ok: true }); }
-        if (!m[2] && method === 'PATCH') { const b = JSON.parse(await readBody(req, 20000)); const u = auth.updateUser(m[1], b, user.username); store.audit({ action: 'user-update', by: user.username, user: m[1], patch: { role: b.role, disabled: b.disabled, allowedTemplates: b.allowedTemplates } }); return json(res, 200, u); }
+        if (!m[2] && method === 'PATCH') { const b = JSON.parse(await readBody(req, 20000)); const u = auth.updateUser(m[1], b, user.username); store.audit({ action: 'user-update', by: user.username, user: m[1], patch: { role: b.role, disabled: b.disabled, allowedTemplates: b.allowedTemplates, approvers: b.approvers } }); return json(res, 200, u); }
         if (!m[2] && method === 'DELETE') { auth.deleteUser(m[1], user.username); store.audit({ action: 'user-delete', by: user.username, user: m[1] }); return json(res, 200, { ok: true }); }
       }
     } catch (e) { return json(res, 400, { error: e.message }); }
@@ -277,6 +280,8 @@ async function handleApi(req, res, url, p) {
         const mgr = auth.find(body.manager);
         if (!mgr || mgr.disabled || auth.RANK[mgr.role] < 1) throw new Error('اختر مديراً صحيحاً');
         if (mgr.username === user.username) throw new Error('لا يمكنك إرسال التقرير لنفسك');
+        const ap = auth.approversOf(user);
+        if (ap.restricted && !ap.list.some((m) => m.username === mgr.username)) throw deny(ap.list.length ? 'هذا المدير ليس معتمِدك. المعتمِد المحدد لك: ' + ap.list.map((m) => m.name).join('، ') : 'المعتمِد المحدد لك غير متاح حالياً. تواصل مع مسؤول النظام.');
         WF.actions.share(rep, user, { manager: mgr, note: body.note });
       } else if (act === 'withdraw') { if (!acc.withdraw) throw deny('غير متاح'); WF.actions.withdraw(rep, user); }
       else if (act === 'approve') { if (!acc.decide) throw deny('غير مصرّح لك بالاعتماد'); WF.actions.approve(rep, user, body); }

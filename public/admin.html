@@ -28,8 +28,8 @@
 
   <section class="card-a">
     <h2>المستخدمون</h2>
-    <div class="btns" style="margin:0 0 12px"><button type="button" class="btn sm" id="bulk-tpl" disabled>تحديد أنواع التقارير للمحدّدين (<span id="bulk-n">0</span>)</button></div>
-    <div class="tscroll-a"><table class="tbl-a"><thead><tr><th><input type="checkbox" id="sel-all" aria-label="تحديد الكل"></th><th>اسم المستخدم</th><th>الاسم</th><th>المصدر</th><th>الدور</th><th>أنواع التقارير</th><th>آخر دخول</th><th>إجراءات</th></tr></thead><tbody id="users"></tbody></table></div>
+    <div class="btns" style="margin:0 0 12px"><button type="button" class="btn sm" id="bulk-tpl" disabled>تحديد أنواع التقارير للمحدّدين (<span id="bulk-n">0</span>)</button><button type="button" class="btn sm" id="bulk-appr" disabled>تحديد المدير المعتمِد للمحدّدين</button><button type="button" class="btn sm ghost" id="auto-appr" title="يضع المدير المباشر من الدومين معتمِداً لمن ليس له معتمِد">تعبئة المعتمِدين من الدومين</button></div>
+    <div class="tscroll-a"><table class="tbl-a"><thead><tr><th><input type="checkbox" id="sel-all" aria-label="تحديد الكل"></th><th>اسم المستخدم</th><th>الاسم</th><th>المصدر</th><th>الدور</th><th>أنواع التقارير</th><th>المدير المعتمِد</th><th>آخر دخول</th><th>إجراءات</th></tr></thead><tbody id="users"></tbody></table></div>
   </section>
 
   <section class="card-a">
@@ -65,6 +65,9 @@ import { mountUserChip } from '/js/userchip.js';
 let me, usersCache = [];
 const selected = new Set();
 const TPL = window.RBT.TEMPLATES;
+const nameOf = (un) => { const x = usersCache.find((u) => u.username === un); return x ? x.name : un; };
+const approverText = (u) => (u.approvers && u.approvers.length ? u.approvers.map(nameOf).join('، ') : 'أي مدير');
+const managedCount = (m) => usersCache.filter((u) => (u.approvers || []).includes(m.username)).length;
 const summarize = (list) => (Array.isArray(list) ? (list.length ? `${list.length} من ${TPL.length}` : 'لا شيء') : 'الكل');
 const ROLES = [['employee', 'موظف'], ['manager', 'مدير'], ['admin', 'مسؤول']];
 const api = async (url, method, body) => { const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); const o = await r.json().catch(() => ({})); if (!r.ok) throw new Error(o.error || 'تعذر التنفيذ'); return o; };
@@ -80,8 +83,9 @@ async function loadUsers() {
     const cb = el('input', { type: 'checkbox', 'aria-label': 'تحديد ' + u.name, checked: selected.has(u.username), onchange: (e) => { e.target.checked ? selected.add(u.username) : selected.delete(u.username); paintBulk(); } });
     tb.append(el('tr', { class: u.disabled ? 'off' : '' },
       el('td', {}, cb),
-      el('td', { dir: 'ltr', style: 'text-align:right' }, u.username), el('td', {}, u.name), el('td', {}, u.source === 'ad' ? 'دومين' : 'محلي'), el('td', {}, role),
+      el('td', { dir: 'ltr', style: 'text-align:right' }, u.username), el('td', {}, u.name, managedCount(u) ? el('small', { class: 'muted', style: 'display:block' }, 'يعتمد لـ ' + managedCount(u) + ' موظف') : null), el('td', {}, u.source === 'ad' ? 'دومين' : 'محلي'), el('td', {}, role),
       el('td', {}, u.role === 'admin' ? sum : el('button', { type: 'button', class: 'btn sm ghost', title: 'تحديد أنواع التقارير المسموحة', onclick: () => editTemplates([u]) }, sum)),
+      el('td', {}, u.role === 'admin' ? el('span', { class: 'muted' }, '—') : el('button', { type: 'button', class: 'btn sm ghost', title: 'تحديد من يعتمد تقارير هذا المستخدم', onclick: () => editApprovers([u]) }, approverText(u))),
       el('td', {}, fmt(u.lastLogin)),
       el('td', { style: 'white-space:nowrap' },
         u.source === 'local' ? btn('كلمة مرور', { cls: 'sm ghost', onclick: () => resetPw(u) }) : null, ' ',
@@ -90,11 +94,37 @@ async function loadUsers() {
   });
 }
 function paintBulk() {
-  document.getElementById('bulk-n').textContent = selected.size; document.getElementById('bulk-tpl').disabled = !selected.size;
+  document.getElementById('bulk-n').textContent = selected.size; document.getElementById('bulk-tpl').disabled = !selected.size; document.getElementById('bulk-appr').disabled = !selected.size;
   const all = document.getElementById('sel-all'); all.checked = usersCache.length > 0 && usersCache.every((u) => selected.has(u.username));
 }
 document.getElementById('sel-all').onchange = (e) => { usersCache.forEach((u) => (e.target.checked ? selected.add(u.username) : selected.delete(u.username))); loadUsers(); };
 document.getElementById('bulk-tpl').onclick = () => editTemplates(usersCache.filter((u) => selected.has(u.username)));
+document.getElementById('bulk-appr').onclick = () => editApprovers(usersCache.filter((u) => selected.has(u.username)));
+document.getElementById('auto-appr').onclick = async () => { try { const r = await api('/api/admin/users/auto-approvers', 'POST'); toast(r.count ? `تم تحديد المعتمِد لـ ${r.count} مستخدم من بيانات الدومين` : 'لا يوجد مستخدمون بلا معتمِد لهم مدير مسجّل في الدومين', { tone: r.count ? 'ok' : '' , ms: 4500 }); loadUsers(); loadAudit(); } catch (e) { toast(e.message, { tone: 'err' }); } };
+
+// اختيار المدير المعتمِد: قائمة المدراء/المسؤولين. بدون اختيار = أي مدير. يُرجع مصفوفة أو undefined عند الإلغاء
+function pickApprovers(title, current, targets, note) {
+  return new Promise((resolve) => {
+    let done = false; const finish = (v) => { if (!done) { done = true; m.close(); resolve(v); } };
+    const cands = usersCache.filter((u) => !u.disabled && (u.role === 'manager' || u.role === 'admin') && !(targets.length === 1 && targets[0].username === u.username));
+    const chosen = new Set(current.filter((x) => cands.some((c) => c.username === x)));
+    const q = el('input', { type: 'search', placeholder: 'ابحث عن مدير...', 'aria-label': 'ابحث عن مدير' });
+    const box = el('div', { style: 'max-height:42vh;overflow:auto;margin-top:8px' });
+    const draw = () => { box.replaceChildren(); const t = q.value.trim(); const shown = cands.filter((c) => !t || (c.name + c.username).includes(t)); if (!cands.length) box.append(el('p', { class: 'muted' }, 'لا يوجد مدراء. غيّر دور مستخدم إلى «مدير» أولاً.')); shown.forEach((c) => box.append(el('label', { class: 'chk', style: 'display:flex;padding:6px 0;gap:8px' }, el('input', { type: 'checkbox', checked: chosen.has(c.username), onchange: (e) => { e.target.checked ? chosen.add(c.username) : chosen.delete(c.username); } }), el('span', {}, c.name, el('small', { class: 'muted' }, ' · ' + c.username + (c.department ? ' · ' + c.department : '')))))); };
+    q.oninput = draw;
+    const body = el('div', {}, note ? el('p', { class: 'muted' }, note) : null, q, box, el('div', { class: 'dlg-actions' }, btn('حفظ', { cls: 'primary', onclick: () => finish([...chosen]) }), btn('بدون تحديد (أي مدير)', { cls: 'ghost', onclick: () => finish([]) }), btn('إلغاء', { cls: 'ghost', onclick: () => finish(undefined) })));
+    const m = modal(title, body, { onclose: () => { if (!done) { done = true; resolve(undefined); } } }); draw();
+  });
+}
+async function editApprovers(list) {
+  if (!list.length) return;
+  const one = list.length === 1;
+  const v = await pickApprovers(one ? 'المدير المعتمِد — ' + list[0].name : `المدير المعتمِد لـ ${list.length} مستخدمين`, one ? (list[0].approvers || []) : [], list, one ? 'يرسل هذا المستخدم تقاريره للاعتماد إلى المدير المحدد فقط. اختر أكثر من مدير إن أردت بديلاً، والأول هو الافتراضي.' : 'سيُستبدل الاختيار الحالي لكل المحدّدين. من كان ضمن القائمة نفسه يُتجاوز.');
+  if (v === undefined) return;
+  let fail = 0, last = '';
+  for (const u of list) { const arr = v.filter((x) => x !== u.username); if (v.length && !arr.length) { fail++; continue; } try { await api('/api/admin/users/' + u.username, 'PATCH', { approvers: arr }); } catch (e) { fail++; last = e.message; } }
+  toast(fail ? `تم الحفظ مع ${fail} تعذّر. ${last}` : 'تم حفظ المدير المعتمِد', { tone: fail ? 'err' : 'ok' }); loadUsers(); loadAudit();
+}
 
 // نافذة اختيار أنواع التقارير: «كل الأنواع» أو قائمة محددة. تُرجع null (الكل) أو مصفوفة، أو undefined عند الإلغاء
 function pickTemplates(title, current, note) {
@@ -128,7 +158,7 @@ function resetPw(u) {
   const m = modal('إعادة تعيين كلمة المرور — ' + u.name, el('div', {}, el('div', { class: 'fld' }, el('label', { for: 'rp' }, 'كلمة المرور الجديدة'), pw), msg, el('div', { class: 'dlg-actions' }, btn('حفظ', { cls: 'primary', onclick: async () => { try { await api('/api/admin/users/' + u.username + '/password', 'POST', { password: pw.value }); m.close(); toast('تم تعيين كلمة المرور وإنهاء جلسات المستخدم', { tone: 'ok' }); } catch (e) { msg.textContent = e.message; } } }), btn('إلغاء', { cls: 'ghost', onclick: () => m.close() }))));
   pw.focus();
 }
-const ACT = { login: 'دخول', 'login-failed': 'فشل دخول', 'login-locked': 'إيقاف محاولات', 'login-ad-unavailable': 'الدومين غير متاح', 'report-create': 'إنشاء تقرير', 'report-update': 'تعديل تقرير', 'report-share': 'إرسال للاعتماد', 'report-approve': 'اعتماد', 'report-return': 'إعادة للتعديل', 'report-withdraw': 'سحب', 'report-reopen': 'إعادة فتح', 'report-owner': 'نقل ملكية', 'user-create': 'إضافة مستخدم', 'user-update': 'تعديل مستخدم', 'user-delete': 'حذف مستخدم', 'password-reset': 'إعادة كلمة مرور', 'password-change': 'تغيير كلمة مرور', 'settings-update': 'تعديل الإعدادات', 'bootstrap-admin': 'إنشاء مسؤول' };
+const ACT = { login: 'دخول', 'login-failed': 'فشل دخول', 'login-locked': 'إيقاف محاولات', 'login-ad-unavailable': 'الدومين غير متاح', 'report-create': 'إنشاء تقرير', 'report-update': 'تعديل تقرير', 'report-share': 'إرسال للاعتماد', 'report-approve': 'اعتماد', 'report-return': 'إعادة للتعديل', 'report-withdraw': 'سحب', 'report-reopen': 'إعادة فتح', 'report-owner': 'نقل ملكية', 'user-create': 'إضافة مستخدم', 'user-update': 'تعديل مستخدم', 'user-delete': 'حذف مستخدم', 'password-reset': 'إعادة كلمة مرور', 'password-change': 'تغيير كلمة مرور', 'settings-update': 'تعديل الإعدادات', 'approvers-auto': 'تعبئة المعتمِدين من الدومين', 'bootstrap-admin': 'إنشاء مسؤول' };
 async function loadAudit() {
   const rows = await api('/api/admin/audit?n=150'), tb = document.getElementById('audit'); tb.replaceChildren();
   rows.forEach((r) => tb.append(el('tr', {}, el('td', {}, fmt(r.at)), el('td', {}, ACT[r.action] || r.action), el('td', { dir: 'ltr', style: 'text-align:right' }, r.by || r.user || ''), el('td', { class: 'muted' }, [r.user && r.by ? 'المستخدم: ' + r.user : '', r.id ? 'تقرير: ' + r.id : '', r.ip ? 'IP: ' + r.ip : '', r.to ? 'إلى: ' + r.to : '', r.reason ? 'السبب: ' + r.reason : ''].filter(Boolean).join(' · ')))));

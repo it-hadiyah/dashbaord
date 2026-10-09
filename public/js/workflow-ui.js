@@ -26,13 +26,13 @@ function form(title, fields, okLabel, run, danger) {
 }
 
 export async function shareDialog(reportId) {
-  const res = await fetch('/api/managers'); const list = res.ok ? await res.json() : [];
-  if (!list.length) { toast('لا يوجد مدراء مسجّلون. اطلب من مسؤول النظام إضافة مدير.', { tone: 'err', ms: 5000 }); return false; }
+  const res = await fetch('/api/managers'); const data = res.ok ? await res.json() : { list: [], restricted: false }; const list = data.list;
+  if (!list.length) { toast(data.restricted ? 'المعتمِد المحدد لك غير متاح حالياً. تواصل مع مسؤول النظام.' : 'لا يوجد مدراء مسجّلون. اطلب من مسؤول النظام إضافة مدير.', { tone: 'err', ms: 5000 }); return false; }
   const sel = el('select', { id: 'sh-mgr', 'aria-label': 'المدير' }, list.map((m) => el('option', { value: m.username, selected: m.isMine }, m.name + (m.department ? ' — ' + m.department : ''))));
   if (!list.some((m) => m.isMine)) sel.selectedIndex = 0;
   const note = el('textarea', { rows: 3, id: 'sh-note', placeholder: 'ملاحظة للمدير (اختياري)' });
   return form('إرسال التقرير للاعتماد', [
-    el('p', { class: 'muted' }, 'بعد الإرسال يصل التقرير للمدير فقط ولا يمكنك تعديله حتى يعيده أو تسحبه. بدون الإرسال لا يوجد اعتماد.'),
+    el('p', { class: 'muted' }, (data.restricted ? 'المعتمِد المحدد لك من مسؤول النظام. ' : '') + 'بعد الإرسال يصل التقرير للمدير فقط ولا يمكنك تعديله حتى يعيده أو تسحبه. بدون الإرسال لا يوجد اعتماد.'),
     el('div', { class: 'fld' }, el('label', { for: 'sh-mgr' }, 'المدير المعتمِد'), sel), el('div', { class: 'fld' }, el('label', { for: 'sh-note' }, 'ملاحظة'), note)],
   'إرسال للاعتماد', async () => { await call(reportId, 'share', { manager: sel.value, note: note.value }); });
 }
