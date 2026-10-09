@@ -1,5 +1,6 @@
 # يتحقق من اسم المستخدم وكلمة المرور على الدومين ويُرجع بيانات المستخدم كـ JSON (سطر واحد).
-# الإدخال (stdin): {"domain":"","username":"sara","password":"..."}
+# الإدخال (stdin): {"domain":"hadiyah.org.sa","server":"10.10.10.201","username":"sara","password":"..."}
+# server (اختياري): عنوان الـ Domain Controller؛ إذا تُرك فارغاً يُستخدم اسم الدومين عبر DNS.
 # يعمل على Windows PowerShell 5.1 ويحتاج أن يكون السيرفر منضمّاً للدومين.
 $ErrorActionPreference = 'Stop'
 [Console]::InputEncoding  = [System.Text.Encoding]::UTF8
@@ -10,8 +11,9 @@ try {
   $in  = $raw | ConvertFrom-Json
   Add-Type -AssemblyName System.DirectoryServices.AccountManagement
   $ct = [System.DirectoryServices.AccountManagement.ContextType]::Domain
-  if ([string]::IsNullOrWhiteSpace($in.domain)) { $ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext($ct) }
-  else { $ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext($ct, $in.domain) }
+  $name = if (-not [string]::IsNullOrWhiteSpace($in.server)) { $in.server } elseif (-not [string]::IsNullOrWhiteSpace($in.domain)) { $in.domain } else { $null }
+  if ($null -eq $name) { $ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext($ct) }
+  else { $ctx = New-Object System.DirectoryServices.AccountManagement.PrincipalContext($ct, $name) }
 
   if (-not $ctx.ValidateCredentials($in.username, $in.password)) { Out-Json @{ ok = $false }; exit 0 }
 

@@ -35,9 +35,9 @@ PORT=8080 node server.js       # (PowerShell:  $env:PORT=8080; node server.js)
 - **التقارير القديمة** (قبل هذا الإصدار) بلا مالك فتبقى للمسؤول، وله «نقل» ملكيتها لأي موظف من صفحة التقارير.
 - **سجل النشاط** للمسؤول: الدخول، الإنشاء، الإرسال، الاعتماد، وتعديلات الحسابات (بدون أي كلمات مرور).
 
-إعدادات `auth` في `config.json`: `mode` (`ad` أو `local`)، `domain` (اتركه فارغاً لدومين السيرفر)، `sessionHours` (مدة الخمول)، `secureCookie` (فعّله عند استخدام HTTPS)، `trustProxy` (إذا كان خلف IIS/Proxy ليُقرأ عنوان العميل الحقيقي).
+إعدادات `auth` في `config.json`: `mode` (`ad` أو `local`)، `domain` (اسم الدومين) و`server` (عنوان الـ Domain Controller، اختياري)، `sessionHours` (مدة الخمول)، `secureCookie` (فعّله عند استخدام HTTPS)، `trustProxy` (إذا كان خلف IIS/Proxy ليُقرأ عنوان العميل الحقيقي).
 اختبار الدومين يدوياً من PowerShell على السيرفر:
-`'{"domain":"","username":"sara","password":"..."}' | powershell -NoProfile -File tools\ad-auth.ps1`
+`'{"domain":"hadiyah.org.sa","server":"10.10.10.201","username":"sara","password":"..."}' | powershell -NoProfile -File tools\ad-auth.ps1`
 
 > مهم: الموقع يعمل بـ HTTP افتراضياً فكلمات المرور تمر بدون تشفير على الشبكة. شغّله خلف HTTPS (شهادة على IIS) ثم فعّل `secureCookie`.
 

@@ -17,13 +17,16 @@
   },
   "auth": {
     "mode": "ad",
-    "domain": "",
-    "admins": [],
+    "domain": "hadiyah.org.sa",
+    "admins": [
+      "da.ali"
+    ],
     "managers": [],
     "adminGroups": [],
     "managerGroups": [],
     "sessionHours": 8,
     "secureCookie": false,
-    "trustProxy": false
+    "trustProxy": false,
+    "server": "10.10.10.201"
   }
 }
