@@ -3,40 +3,57 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>كل التقارير</title>
-<link rel="stylesheet" href="/style.css">
+<title>التقارير المحفوظة</title>
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<script>try{var t=localStorage.getItem('rb-theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
 </head>
 <body>
-<main class="form-page">
-  <nav><a href="/">+ تقرير جديد</a></nav>
-  <h1>كل التقارير</h1>
-  <input id="q" placeholder="ابحث بالعنوان أو الموظف أو القسم..." class="search">
-  <table id="t"><thead><tr><th>العنوان</th><th>النوع</th><th>الموظف</th><th>القسم</th><th>التاريخ</th></tr></thead><tbody></tbody></table>
-  <p id="empty" hidden>لا توجد تقارير.</p>
+<header class="top">
+  <div class="brand"><img src="/logo.svg" alt="" width="30" height="30"><div><strong>منشئ التقارير</strong></div></div>
+  <div class="top-actions"><nav class="top-links"><a href="/" class="nav-a">تقرير جديد</a><a href="/list.html" class="nav-a on">التقارير المحفوظة</a></nav></div>
+</header>
+<main class="page-wrap">
+  <h1>التقارير المحفوظة</h1>
+  <div class="search"><span id="si"></span><input id="q" type="search" placeholder="ابحث بالعنوان أو الموظف أو الإدارة..." aria-label="بحث في التقارير"></div>
+  <div id="list" class="rlist" aria-live="polite"><div class="skel" style="height:72px;border-radius:14px;position:relative"></div><div class="skel" style="height:72px;border-radius:14px;position:relative"></div></div>
+  <div id="empty" class="empty" hidden><b>لا توجد تقارير بعد</b><small>ابدأ بإنشاء تقريرك الأول من أحد القوالب.</small><a class="btn primary" href="/">إنشاء تقرير</a></div>
 </main>
-<script>
-const body = document.querySelector('#t tbody');
-const empty = document.getElementById('empty');
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<script type="module">
+import { icon } from '/js/icons.js';
+import { el, btn, toast, confirmDialog } from '/js/ui.js';
+document.getElementById('si').innerHTML = icon('search', 16);
+const list = document.getElementById('list'), empty = document.getElementById('empty');
 let all = [];
-const cell = (v) => { const td = document.createElement('td'); td.textContent = v || ''; return td; };
+const fmt = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' }); };
 function draw() {
-  const q = document.getElementById('q').value.trim().toLowerCase();
-  body.replaceChildren();
-  const rows = all.filter((r) => [r.title, r.employee, r.department, r.type].join(' ').toLowerCase().includes(q));
-  empty.hidden = rows.length > 0;
-  for (const r of rows) {
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    const a = document.createElement('a');
-    a.href = '/reports/' + r.id + '.html';
-    a.textContent = r.title;
-    td.appendChild(a);
-    tr.append(td, cell(r.type), cell(r.employee), cell(r.department), cell(r.date));
-    body.appendChild(tr);
-  }
+  const q = document.getElementById('q').value.trim();
+  const rows = all.filter((r) => !q || [r.title, r.employee, r.department, r.templateName].join(' ').includes(q));
+  list.replaceChildren();
+  empty.hidden = all.length > 0;
+  if (all.length && !rows.length) list.append(el('div', { class: 'empty' }, el('b', {}, 'لا نتائج مطابقة')));
+  rows.forEach((r) => list.append(el('div', { class: 'ritem' },
+    el('div', { class: 'rt' }, el('a', { class: 'ttl', href: '/reports/' + r.id + '.html' }, r.title || 'بدون عنوان'),
+      el('div', { class: 'rm' }, el('span', {}, r.templateName || 'تقرير'), r.employee ? el('span', {}, r.employee) : null, r.department ? el('span', {}, r.department) : null, el('span', {}, 'آخر تعديل: ' + fmt(r.updatedAt || r.createdAt)))),
+    el('div', { class: 'ra' },
+      el('a', { class: 'btn sm', href: '/?edit=' + r.id }, 'تعديل'),
+      btn('نسخة', { cls: 'sm ghost', onclick: () => dup(r.id) }),
+      el('a', { class: 'btn sm ghost', href: '/reports/' + r.id + '.html', target: '_blank', rel: 'noopener' }, 'فتح')))));
 }
+async function dup(id) {
+  try {
+    const d = await (await fetch('/api/reports/' + id)).json();
+    delete d.id; d.title = (d.title || '') + ' (نسخة)';
+    const res = await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+    if (!res.ok) throw new Error('تعذر النسخ');
+    toast('تم إنشاء نسخة من التقرير', { tone: 'ok' }); load();
+  } catch (e) { toast(e.message, { tone: 'err' }); }
+}
+async function load() { try { all = await (await fetch('/api/reports')).json(); } catch (e) { all = []; } draw(); }
 document.getElementById('q').oninput = draw;
-fetch('/api/reports').then((r) => r.json()).then((d) => { all = d; draw(); });
+load();
 </script>
 </body>
 </html>

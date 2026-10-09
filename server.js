@@ -1,114 +1,176 @@
 'use strict';
-// خادم بدون أي مكتبات خارجية وبدون قاعدة بيانات:
-// كل تقرير يُحفظ كملفين داخل مجلد reports: صفحة HTML للعرض وملف JSON ببياناته
+// خادم بدون مكتبات خارجية وبدون قاعدة بيانات: كل تقرير يُحفظ كملف JSON داخل مجلد reports،
+// وصفحة العرض تُولَّد منه عند الطلب (فتنعكس تحديثات التصميم والكليشة على التقارير القديمة).
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const T = require('./public/shared/templates.js');
+const R = require('./public/shared/render.js');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const REPORTS_DIR = path.join(__dirname, 'reports');
-const MAX_BODY = 2 * 1024 * 1024;
+const MAX_BODY = 24 * 1024 * 1024;
+const MAX_IMAGE = 3 * 1024 * 1024;
+const ID_RE = /^[a-z0-9-]{3,40}$/;
 
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' };
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
+};
 
-const { renderReport } = require('./render');
+const loadConfig = () => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')); } catch (e) { return {}; } };
 
-// تنظيف البيانات القادمة من المتصفح قبل حفظها
-const str = (v, max = 5000) => String(v ?? '').slice(0, max);
-function clean(d) {
-  const sections = (Array.isArray(d.sections) ? d.sections : []).slice(0, 50).map((s) => {
-    const type = ['text', 'list', 'table', 'kpi', 'chart'].includes(s.type) ? s.type : 'text';
-    let content;
-    if (type === 'text') content = str(s.content, 20000);
-    else if (type === 'list') content = (Array.isArray(s.content) ? s.content : []).slice(0, 200).map((i) => str(i, 500));
-    else if (type === 'kpi') content = (Array.isArray(s.content) ? s.content : []).slice(0, 50).map((k) => ({ label: str(k && k.label, 200), value: str(k && k.value, 100), trend: str(k && k.trend, 30) }));
-    else if (type === 'chart') {
-      const c = s.content || {};
-      content = {
-        kind: ['bar', 'line', 'donut', 'hbar'].includes(c.kind) ? c.kind : 'bar',
-        data: (Array.isArray(c.data) ? c.data : []).slice(0, 50).map((d) => ({ label: str(d && d.label, 200), value: str(d && d.value, 50) })),
-      };
-    } else {
-      const c = s.content || {};
-      content = {
-        headers: (Array.isArray(c.headers) ? c.headers : []).slice(0, 20).map((h) => str(h, 200)),
-        rows: (Array.isArray(c.rows) ? c.rows : []).slice(0, 500).map((r) => (Array.isArray(r) ? r : []).slice(0, 20).map((x) => str(x, 1000))),
-      };
+/* ---------- التحقق من البيانات وتنظيفها ---------- */
+const str = (v, max = 5000) => String(v == null ? '' : v).slice(0, max);
+const arr = (v, max) => (Array.isArray(v) ? v.slice(0, max) : []);
+
+function cleanContent(type, c) {
+  c = c == null ? {} : c;
+  switch (type) {
+    case 'text': return R.sanitize(str(c, 60000));
+    case 'list': return { ordered: !!c.ordered, items: arr(c.items, 300).map((i) => str(i, 600)) };
+    case 'table': return {
+      zebra: c.zebra !== false,
+      headers: arr(c.headers, 12).map((h) => str(h, 200)),
+      rows: arr(c.rows, 500).map((r) => arr(r, 12).map((x) => str(x, 1000))),
+    };
+    case 'kpi': return { style: c.style === 'highlights' ? 'highlights' : 'cards', items: arr(c.items, 24).map((k) => ({ label: str(k && k.label, 200), value: str(k && k.value, 100), trend: str(k && k.trend, 30) })) };
+    case 'chart': return {
+      kind: ['bar', 'line', 'area', 'donut', 'hbar'].includes(c.kind) ? c.kind : 'bar', unit: str(c.unit, 20),
+      data: arr(c.data, 60).map((d) => ({ label: str(d && d.label, 200), value: str(d && d.value, 50) })),
+    };
+    case 'progress': return { items: arr(c.items, 30).map((i) => ({ label: str(i && i.label, 200), value: str(i && i.value, 20) })) };
+    case 'timeline': return { items: arr(c.items, 60).map((i) => ({ date: str(i && i.date, 100), title: str(i && i.title, 300), desc: str(i && i.desc, 1000), status: ['done', 'active', 'todo'].includes(i && i.status) ? i.status : 'todo' })) };
+    case 'image': {
+      const src = str(c.src, MAX_IMAGE * 1.4);
+      return { src: R.SAFE_IMG.test(src) && src.length <= MAX_IMAGE * 1.4 ? src : '', caption: str(c.caption, 300), fit: c.fit === 'cover' ? 'cover' : 'contain', height: Math.max(60, Math.min(600, parseInt(c.height, 10) || 220)) };
     }
-    return { type, width: s.width === 'half' ? 'half' : 'full', title: str(s.title, 200), content };
-  });
-  return { title: str(d.title, 200), type: str(d.type, 100), employee: str(d.employee, 200), department: str(d.department, 200), date: str(d.date, 30), sections };
+    case 'callout': return { tone: ['info', 'success', 'warn'].includes(c.tone) ? c.tone : 'info', text: str(c.text, 3000) };
+    default: return {};
+  }
 }
 
-function send(res, code, body, type = 'text/plain; charset=utf-8') {
-  res.writeHead(code, { 'Content-Type': type, 'X-Content-Type-Options': 'nosniff' });
+function clean(d) {
+  d = T.migrate(d || {});
+  const o = d.options || {};
+  return {
+    version: 2, id: d.id || null,
+    template: T.TEMPLATES.some((t) => t.id === d.template) ? d.template : 'blank',
+    palette: T.PALETTES[d.palette] ? d.palette : 'green', sample: !!d.sample,
+    title: str(d.title, 200), subtitle: str(d.subtitle, 300), period: str(d.period, 120),
+    employee: str(d.employee, 200), department: str(d.department, 200), date: str(d.date, 30),
+    options: {
+      cover: o.cover !== false, toc: !!o.toc, closing: !!o.closing, header: o.header !== false, pageNumbers: o.pageNumbers !== false,
+      margins: ['narrow', 'normal', 'wide'].includes(o.margins) ? o.margins : 'normal', footerText: str(o.footerText, 300), arabicDigits: !!o.arabicDigits,
+    },
+    sections: arr(d.sections, 80).map((s) => {
+      const type = T.TYPES.includes(s && s.type) ? s.type : 'text';
+      return { id: /^[A-Za-z0-9_-]{1,40}$/.test(s && s.id) ? s.id : T.uid(), type, title: str(s && s.title, 200), visible: !(s && s.visible === false), width: s && s.width === 'half' ? 'half' : 'full', hint: str(s && s.hint, 300), content: cleanContent(type, s && s.content) };
+    }),
+  };
+}
+
+/* ---------- أدوات HTTP ---------- */
+function send(res, code, body, type = 'text/plain; charset=utf-8', extra = {}) {
+  res.writeHead(code, Object.assign({ 'Content-Type': type, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' }, extra));
   res.end(body);
 }
-const json = (res, code, obj) => send(res, code, JSON.stringify(obj), 'application/json; charset=utf-8');
+const json = (res, code, obj) => send(res, code, JSON.stringify(obj), MIME['.json'], { 'Cache-Control': 'no-store' });
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
-    req.on('data', (c) => {
-      size += c.length;
-      if (size > MAX_BODY) { reject(new Error('too large')); req.destroy(); return; }
-      chunks.push(c);
-    });
+    req.on('data', (c) => { size += c.length; if (size > MAX_BODY) { reject(new Error('too large')); req.destroy(); return; } chunks.push(c); });
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
 }
 
-function serveFile(res, dir, name) {
-  const file = path.join(dir, path.basename(name));
+function serveStatic(res, pathname) {
+  let rel;
+  try { rel = decodeURIComponent(pathname); } catch (e) { return send(res, 400, 'طلب غير صالح'); }
+  if (rel === '/' || rel === '') rel = '/index.html';
+  const file = path.join(PUBLIC_DIR, path.normalize(rel));
+  if (!file.startsWith(PUBLIC_DIR + path.sep)) return send(res, 403, 'ممنوع');
   fs.readFile(file, (err, data) => {
     if (err) return send(res, 404, 'غير موجود');
-    send(res, 200, data, TYPES[path.extname(file)] || 'application/octet-stream');
+    const ext = path.extname(file).toLowerCase();
+    send(res, 200, data, MIME[ext] || 'application/octet-stream', { 'Cache-Control': ext === '.woff2' ? 'public, max-age=31536000, immutable' : 'no-cache' });
   });
 }
 
+/* ---------- التقارير ---------- */
+const fileOf = (id) => path.join(REPORTS_DIR, id + '.json');
+async function readReport(id) {
+  const raw = JSON.parse(await fs.promises.readFile(fileOf(id), 'utf8'));
+  const d = T.migrate(raw);
+  d.id = id; d.createdAt = raw.createdAt; d.updatedAt = raw.updatedAt;
+  return d;
+}
+async function saveReport(id, data) {
+  const d = clean(data);
+  d.id = id;
+  const now = new Date().toISOString();
+  let createdAt = now;
+  try { createdAt = JSON.parse(await fs.promises.readFile(fileOf(id), 'utf8')).createdAt || now; } catch (e) { /* جديد */ }
+  d.createdAt = createdAt; d.updatedAt = now;
+  const tmp = fileOf(id) + '.tmp';
+  await fs.promises.writeFile(tmp, JSON.stringify(d, null, 2));
+  await fs.promises.rename(tmp, fileOf(id));
+  return d;
+}
 async function listReports() {
   const files = (await fs.promises.readdir(REPORTS_DIR)).filter((f) => f.endsWith('.json'));
   const out = [];
   for (const f of files) {
     try {
-      const d = JSON.parse(await fs.promises.readFile(path.join(REPORTS_DIR, f), 'utf8'));
-      out.push({ id: f.slice(0, -5), title: d.title, type: d.type, employee: d.employee, department: d.department, date: d.date, createdAt: d.createdAt });
+      const raw = JSON.parse(await fs.promises.readFile(path.join(REPORTS_DIR, f), 'utf8'));
+      const d = T.migrate(raw);
+      out.push({ id: f.slice(0, -5), title: d.title, template: d.template, templateName: raw.version === 2 ? T.byId(d.template).name : raw.type || '', employee: d.employee, department: d.department, date: d.date, createdAt: raw.createdAt || '', updatedAt: raw.updatedAt || raw.createdAt || '' });
     } catch (e) { /* تجاهل الملفات التالفة */ }
   }
-  return out.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  return out.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
 }
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  const p = url.pathname;
   try {
-    if (req.method === 'POST' && url.pathname === '/api/reports') {
-      const data = clean(JSON.parse(await readBody(req)));
-      if (!data.title || !data.employee) return json(res, 400, { error: 'عنوان التقرير واسم الموظف مطلوبان' });
+    if (p === '/api/config' && req.method === 'GET') return json(res, 200, loadConfig());
+    if (p === '/api/reports' && req.method === 'GET') return json(res, 200, await listReports());
+    if (p === '/api/reports' && req.method === 'POST') {
+      const data = JSON.parse(await readBody(req));
+      if (!str(data.title).trim()) return json(res, 400, { error: 'عنوان التقرير مطلوب' });
       const id = Date.now().toString(36) + '-' + crypto.randomBytes(3).toString('hex');
-      data.createdAt = new Date().toISOString();
-      await fs.promises.writeFile(path.join(REPORTS_DIR, id + '.json'), JSON.stringify(data, null, 2));
-      await fs.promises.writeFile(path.join(REPORTS_DIR, id + '.html'), renderReport(data, id));
-      return json(res, 201, { url: '/reports/' + id + '.html' });
+      await saveReport(id, data);
+      return json(res, 201, { id, url: '/reports/' + id + '.html' });
     }
-    if (req.method === 'POST' && url.pathname === '/api/preview') {
-      const raw = JSON.parse(await readBody(req));
-      const html = renderReport(clean(raw), '—', { preview: true, highlight: Number.isInteger(raw.highlight) ? raw.highlight : -1 });
-      return send(res, 200, html, 'text/html; charset=utf-8');
+    let m = p.match(/^\/api\/reports\/([a-z0-9-]+)$/);
+    if (m && ID_RE.test(m[1])) {
+      if (req.method === 'GET') return json(res, 200, await readReport(m[1]));
+      if (req.method === 'PUT') {
+        await readReport(m[1]); // يتأكد من وجوده
+        const data = JSON.parse(await readBody(req));
+        if (!str(data.title).trim()) return json(res, 400, { error: 'عنوان التقرير مطلوب' });
+        await saveReport(m[1], data);
+        return json(res, 200, { id: m[1], url: '/reports/' + m[1] + '.html' });
+      }
     }
-    if (req.method === 'GET' && url.pathname === '/api/reports') return json(res, 200, await listReports());
-    if (req.method === 'GET' && url.pathname.startsWith('/reports/')) {
-      const name = url.pathname.slice('/reports/'.length);
-      if (!/^[a-z0-9-]+\.html$/.test(name)) return send(res, 404, 'غير موجود');
-      return serveFile(res, REPORTS_DIR, name);
+    m = p.match(/^\/reports\/([a-z0-9-]+)\.html$/);
+    if (m && req.method === 'GET') {
+      if (!ID_RE.test(m[1])) return send(res, 404, 'غير موجود');
+      const d = await readReport(m[1]);
+      return send(res, 200, R.renderPage(d, { config: loadConfig(), id: m[1] }), MIME['.html'], { 'Cache-Control': 'no-store' });
     }
-    if (req.method === 'GET') return serveFile(res, PUBLIC_DIR, url.pathname === '/' ? 'index.html' : url.pathname);
+    if (req.method === 'GET') return serveStatic(res, p);
     send(res, 405, 'Method Not Allowed');
   } catch (e) {
+    if (e && e.code === 'ENOENT') return json(res, 404, { error: 'غير موجود' });
     json(res, 400, { error: 'طلب غير صالح' });
   }
 });

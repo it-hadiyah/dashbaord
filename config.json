@@ -1,9 +1,7 @@
 {
-  "orgName": "اسم الجمعية",
-  "orgSubName": "الإدارة / القسم الرسمي للجمعية",
+  "orgName": "جمعية هدية الحاج والمعتمر",
+  "orgSubName": "نظام التقارير المؤسسية",
   "logo": "/logo.svg",
-  "color": "#3cc79a",
-  "darkColor": "#2a8c6e",
-  "footerText": "هذا التقرير صادر من نظام التقارير الداخلي",
+  "footerText": "تقرير صادر عن النظام الداخلي للتقارير",
   "contact": { "phone": "", "email": "", "website": "", "address": "" }
 }
