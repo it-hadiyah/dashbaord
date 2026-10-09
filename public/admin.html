@@ -9,6 +9,7 @@
 <link rel="icon" href="/brand/logo-icon.png" type="image/png">
 <script>try{var t=localStorage.getItem('rb-theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
 <script src="/js/guard.js"></script>
+<script src="/shared/templates.js"></script>
 <style>
 .tbl-a { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-3); overflow: hidden; } .tbl-a th, .tbl-a td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--border); font-size: var(--fs-2); } .tbl-a th { background: var(--surface-2); color: var(--muted); } .tbl-a select { padding: 4px 8px; width: auto; }
 .card-a { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-3); padding: var(--sp-5); margin: var(--sp-5) 0; } .card-a h2 { font-size: var(--fs-5); margin-bottom: var(--sp-3); }
@@ -27,7 +28,15 @@
 
   <section class="card-a">
     <h2>المستخدمون</h2>
-    <div class="tscroll-a"><table class="tbl-a"><thead><tr><th>اسم المستخدم</th><th>الاسم</th><th>المصدر</th><th>الدور</th><th>آخر دخول</th><th>إجراءات</th></tr></thead><tbody id="users"></tbody></table></div>
+    <div class="btns" style="margin:0 0 12px"><button type="button" class="btn sm" id="bulk-tpl" disabled>تحديد أنواع التقارير للمحدّدين (<span id="bulk-n">0</span>)</button></div>
+    <div class="tscroll-a"><table class="tbl-a"><thead><tr><th><input type="checkbox" id="sel-all" aria-label="تحديد الكل"></th><th>اسم المستخدم</th><th>الاسم</th><th>المصدر</th><th>الدور</th><th>أنواع التقارير</th><th>آخر دخول</th><th>إجراءات</th></tr></thead><tbody id="users"></tbody></table></div>
+  </section>
+
+  <section class="card-a">
+    <h2>أنواع التقارير الافتراضية للمستخدمين الجدد</h2>
+    <p class="muted" id="def-sum"></p>
+    <div class="btns"><button type="button" class="btn" id="def-edit">تعديل الافتراضي</button></div>
+    <p class="tip">يُطبَّق على من يُضاف أو يدخل لأول مرة بعد الحفظ. لا يغيّر المستخدمين الحاليين. المسؤول يملك كل الأنواع دائماً.</p>
   </section>
 
   <section class="card-a">
@@ -53,30 +62,73 @@
 <script type="module">
 import { el, btn, toast, confirmDialog, modal } from '/js/ui.js';
 import { mountUserChip } from '/js/userchip.js';
-let me;
+let me, usersCache = [];
+const selected = new Set();
+const TPL = window.RBT.TEMPLATES;
+const summarize = (list) => (Array.isArray(list) ? (list.length ? `${list.length} من ${TPL.length}` : 'لا شيء') : 'الكل');
 const ROLES = [['employee', 'موظف'], ['manager', 'مدير'], ['admin', 'مسؤول']];
 const api = async (url, method, body) => { const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); const o = await r.json().catch(() => ({})); if (!r.ok) throw new Error(o.error || 'تعذر التنفيذ'); return o; };
 const fmt = (s) => (s ? new Date(s).toLocaleString('ar-SA-u-ca-gregory', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 
 async function loadUsers() {
-  const users = await api('/api/admin/users');
+  const users = usersCache = await api('/api/admin/users');
+  [...selected].forEach((x) => { if (!users.some((u) => u.username === x)) selected.delete(x); }); paintBulk();
   const tb = document.getElementById('users'); tb.replaceChildren();
   users.forEach((u) => {
     const role = el('select', { 'aria-label': 'الدور', disabled: u.username === me.username, onchange: async (e) => { try { await api('/api/admin/users/' + u.username, 'PATCH', { role: e.target.value }); toast('تم تحديث الدور', { tone: 'ok' }); } catch (err) { toast(err.message, { tone: 'err' }); loadUsers(); } } }, ROLES.map(([v, t]) => el('option', { value: v, selected: u.role === v }, t)));
+    const sum = u.role === 'admin' ? 'الكل (مسؤول)' : summarize(u.allowedTemplates);
+    const cb = el('input', { type: 'checkbox', 'aria-label': 'تحديد ' + u.name, checked: selected.has(u.username), onchange: (e) => { e.target.checked ? selected.add(u.username) : selected.delete(u.username); paintBulk(); } });
     tb.append(el('tr', { class: u.disabled ? 'off' : '' },
-      el('td', { dir: 'ltr', style: 'text-align:right' }, u.username), el('td', {}, u.name), el('td', {}, u.source === 'ad' ? 'دومين' : 'محلي'), el('td', {}, role), el('td', {}, fmt(u.lastLogin)),
+      el('td', {}, cb),
+      el('td', { dir: 'ltr', style: 'text-align:right' }, u.username), el('td', {}, u.name), el('td', {}, u.source === 'ad' ? 'دومين' : 'محلي'), el('td', {}, role),
+      el('td', {}, u.role === 'admin' ? sum : el('button', { type: 'button', class: 'btn sm ghost', title: 'تحديد أنواع التقارير المسموحة', onclick: () => editTemplates([u]) }, sum)),
+      el('td', {}, fmt(u.lastLogin)),
       el('td', { style: 'white-space:nowrap' },
         u.source === 'local' ? btn('كلمة مرور', { cls: 'sm ghost', onclick: () => resetPw(u) }) : null, ' ',
         u.username !== me.username ? btn(u.disabled ? 'تفعيل' : 'تعطيل', { cls: 'sm ghost', onclick: async () => { try { await api('/api/admin/users/' + u.username, 'PATCH', { disabled: !u.disabled }); loadUsers(); } catch (err) { toast(err.message, { tone: 'err' }); } } }) : null, ' ',
         u.username !== me.username ? btn('حذف', { cls: 'sm ghost danger-text', onclick: async () => { if (await confirmDialog({ title: 'حذف المستخدم؟', text: `سيُحذف حساب «${u.name}». تقاريره تبقى محفوظة وتظهر للمسؤول.`, ok: 'حذف', danger: true })) { try { await api('/api/admin/users/' + u.username, 'DELETE'); loadUsers(); } catch (err) { toast(err.message, { tone: 'err' }); } } } }) : null)));
   });
 }
+function paintBulk() {
+  document.getElementById('bulk-n').textContent = selected.size; document.getElementById('bulk-tpl').disabled = !selected.size;
+  const all = document.getElementById('sel-all'); all.checked = usersCache.length > 0 && usersCache.every((u) => selected.has(u.username));
+}
+document.getElementById('sel-all').onchange = (e) => { usersCache.forEach((u) => (e.target.checked ? selected.add(u.username) : selected.delete(u.username))); loadUsers(); };
+document.getElementById('bulk-tpl').onclick = () => editTemplates(usersCache.filter((u) => selected.has(u.username)));
+
+// نافذة اختيار أنواع التقارير: «كل الأنواع» أو قائمة محددة. تُرجع null (الكل) أو مصفوفة، أو undefined عند الإلغاء
+function pickTemplates(title, current, note) {
+  return new Promise((resolve) => {
+    let done = false; const finish = (v) => { if (!done) { done = true; m.close(); resolve(v); } };
+    const all = Array.isArray(current) ? false : true; const chosen = new Set(Array.isArray(current) ? current : TPL.map((t) => t.id));
+    const mode = el('select', { 'aria-label': 'النطاق' }, el('option', { value: 'all', selected: all }, 'كل أنواع التقارير'), el('option', { value: 'some', selected: !all }, 'أنواع محددة فقط'));
+    const box = el('div', { style: 'max-height:46vh;overflow:auto;margin-top:10px' });
+    const draw = () => {
+      box.hidden = mode.value === 'all'; box.replaceChildren();
+      const cats = [...new Set(TPL.map((t) => t.category))];
+      cats.forEach((c) => { box.append(el('h4', { style: 'margin:10px 0 4px;color:var(--muted);font-size:var(--fs-2)' }, c)); TPL.filter((t) => t.category === c).forEach((t) => box.append(el('label', { class: 'chk', style: 'display:flex;padding:4px 0' }, el('input', { type: 'checkbox', checked: chosen.has(t.id), onchange: (e) => { e.target.checked ? chosen.add(t.id) : chosen.delete(t.id); } }), t.name))); });
+    };
+    mode.onchange = draw;
+    const body = el('div', {}, note ? el('p', { class: 'muted' }, note) : null, mode, box, el('div', { class: 'dlg-actions' }, btn('حفظ', { cls: 'primary', onclick: () => finish(mode.value === 'all' ? null : [...chosen]) }), btn('إلغاء', { cls: 'ghost', onclick: () => finish(undefined) })));
+    const m = modal(title, body, { onclose: () => { if (!done) { done = true; resolve(undefined); } } }); draw();
+  });
+}
+async function editTemplates(list) {
+  if (!list.length) return;
+  const one = list.length === 1;
+  const v = await pickTemplates(one ? 'أنواع التقارير — ' + list[0].name : `أنواع التقارير لـ ${list.length} مستخدمين`, one ? list[0].allowedTemplates : null, one ? 'يختار هذا المستخدم من هذه الأنواع فقط عند إنشاء تقرير جديد. تقاريره الحالية لا تتأثر.' : 'سيُستبدل الاختيار الحالي لكل المحدّدين.');
+  if (v === undefined) return;
+  try { for (const u of list) await api('/api/admin/users/' + u.username, 'PATCH', { allowedTemplates: v }); toast('تم حفظ أنواع التقارير', { tone: 'ok' }); loadUsers(); loadAudit(); } catch (e) { toast(e.message, { tone: 'err' }); }
+}
+async function loadDefaults() { const s = await api('/api/admin/settings'); document.getElementById('def-sum').textContent = 'الافتراضي الحالي: ' + (Array.isArray(s.defaultTemplates) ? `${s.defaultTemplates.length} من ${TPL.length} أنواع` : 'كل الأنواع'); window.__defTpl = s.defaultTemplates; }
+document.getElementById('def-edit').onclick = async () => { const v = await pickTemplates('الأنواع الافتراضية للمستخدمين الجدد', window.__defTpl, 'تُطبَّق على كل مستخدم جديد (موظف أو مدير).'); if (v === undefined) return; try { await api('/api/admin/settings', 'PUT', { defaultTemplates: v }); toast('تم الحفظ', { tone: 'ok' }); loadDefaults(); loadAudit(); } catch (e) { toast(e.message, { tone: 'err' }); } };
+
 function resetPw(u) {
   const pw = el('input', { type: 'password', id: 'rp', autocomplete: 'new-password' }), msg = el('p', { role: 'alert', style: 'color:var(--danger);min-height:1.2em' });
   const m = modal('إعادة تعيين كلمة المرور — ' + u.name, el('div', {}, el('div', { class: 'fld' }, el('label', { for: 'rp' }, 'كلمة المرور الجديدة'), pw), msg, el('div', { class: 'dlg-actions' }, btn('حفظ', { cls: 'primary', onclick: async () => { try { await api('/api/admin/users/' + u.username + '/password', 'POST', { password: pw.value }); m.close(); toast('تم تعيين كلمة المرور وإنهاء جلسات المستخدم', { tone: 'ok' }); } catch (e) { msg.textContent = e.message; } } }), btn('إلغاء', { cls: 'ghost', onclick: () => m.close() }))));
   pw.focus();
 }
-const ACT = { login: 'دخول', 'login-failed': 'فشل دخول', 'login-locked': 'إيقاف محاولات', 'login-ad-unavailable': 'الدومين غير متاح', 'report-create': 'إنشاء تقرير', 'report-update': 'تعديل تقرير', 'report-share': 'إرسال للاعتماد', 'report-approve': 'اعتماد', 'report-return': 'إعادة للتعديل', 'report-withdraw': 'سحب', 'report-reopen': 'إعادة فتح', 'report-owner': 'نقل ملكية', 'user-create': 'إضافة مستخدم', 'user-update': 'تعديل مستخدم', 'user-delete': 'حذف مستخدم', 'password-reset': 'إعادة كلمة مرور', 'password-change': 'تغيير كلمة مرور', 'bootstrap-admin': 'إنشاء مسؤول' };
+const ACT = { login: 'دخول', 'login-failed': 'فشل دخول', 'login-locked': 'إيقاف محاولات', 'login-ad-unavailable': 'الدومين غير متاح', 'report-create': 'إنشاء تقرير', 'report-update': 'تعديل تقرير', 'report-share': 'إرسال للاعتماد', 'report-approve': 'اعتماد', 'report-return': 'إعادة للتعديل', 'report-withdraw': 'سحب', 'report-reopen': 'إعادة فتح', 'report-owner': 'نقل ملكية', 'user-create': 'إضافة مستخدم', 'user-update': 'تعديل مستخدم', 'user-delete': 'حذف مستخدم', 'password-reset': 'إعادة كلمة مرور', 'password-change': 'تغيير كلمة مرور', 'settings-update': 'تعديل الإعدادات', 'bootstrap-admin': 'إنشاء مسؤول' };
 async function loadAudit() {
   const rows = await api('/api/admin/audit?n=150'), tb = document.getElementById('audit'); tb.replaceChildren();
   rows.forEach((r) => tb.append(el('tr', {}, el('td', {}, fmt(r.at)), el('td', {}, ACT[r.action] || r.action), el('td', { dir: 'ltr', style: 'text-align:right' }, r.by || r.user || ''), el('td', { class: 'muted' }, [r.user && r.by ? 'المستخدم: ' + r.user : '', r.id ? 'تقرير: ' + r.id : '', r.ip ? 'IP: ' + r.ip : '', r.to ? 'إلى: ' + r.to : ''].filter(Boolean).join(' · ')))));
@@ -93,7 +145,7 @@ document.getElementById('add').onsubmit = async (e) => {
   me = await (await fetch('/api/me')).json(); mountUserChip(document.getElementById('user-chip'), me);
   const info = await (await fetch('/api/auth-info')).json();
   document.getElementById('mode').textContent = info.mode === 'ad' ? 'طريقة الدخول: حسابات الدومين' + (info.domain ? ' (' + info.domain + ')' : '') + ' + حسابات محلية احتياطية.' : 'طريقة الدخول: حسابات محلية فقط.';
-  loadUsers(); loadAudit();
+  loadUsers(); loadAudit(); loadDefaults();
 })();
 </script>
 </body>

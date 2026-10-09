@@ -8,6 +8,7 @@ let past = [], future = [], lastKey = '', lastAt = 0;
 export const store = {
   report: null,
   sel: { kind: 'meta', id: null },
+  allowed: null,        // أنواع التقارير المسموحة (null = الكل)
   user: '',             // المستخدم الحالي (تُفصل المسودات بين المستخدمين)
   workflow: { status: 'draft' }, access: null,
   serverId: null,       // معرّف التقرير المحفوظ على الخادم

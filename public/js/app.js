@@ -131,7 +131,7 @@ function designPanel() {
   const toggle = (label, key, def) => el('label', { class: 'toggle' }, el('span', {}, label), el('input', { type: 'checkbox', checked: o[key] !== undefined ? o[key] : def, onchange: (e) => opt(key, e.target.checked) }));
   const wrap = el('div', {});
   wrap.append(
-    el('div', { class: 'dsec' }, el('p', { class: 'nav-h' }, 'القالب'), el('div', { class: 'tpl-list' }, T.TEMPLATES.map((t) => el('button', { type: 'button', class: 'tpl-opt' + (t.id === r.template ? ' on' : ''), onclick: async () => { if (t.id === r.template) return; S.applyTemplate(t.id); toast('تم تغيير الشكل مع الاحتفاظ بمحتواك'); } }, el('span', {}, t.name), el('small', {}, t.cover === 'hero' ? 'غلاف كامل' : t.cover === 'band' ? 'غلاف بشريط' : t.cover === 'side' ? 'غلاف جانبي' : t.cover === 'split' ? 'غلاف مائل' : 'غلاف بسيط'))))),
+    el('div', { class: 'dsec' }, el('p', { class: 'nav-h' }, 'القالب'), el('div', { class: 'tpl-list' }, T.TEMPLATES.filter((t) => !store.allowed || store.allowed.includes(t.id) || t.id === r.template).map((t) => el('button', { type: 'button', class: 'tpl-opt' + (t.id === r.template ? ' on' : ''), onclick: async () => { if (t.id === r.template) return; S.applyTemplate(t.id); toast('تم تغيير الشكل مع الاحتفاظ بمحتواك'); } }, el('span', {}, t.name), el('small', {}, t.cover === 'hero' ? 'غلاف كامل' : t.cover === 'band' ? 'غلاف بشريط' : t.cover === 'side' ? 'غلاف جانبي' : t.cover === 'split' ? 'غلاف مائل' : 'غلاف بسيط'))))),
     el('div', { class: 'dsec' }, el('p', { class: 'nav-h' }, 'ألوان التقرير'), el('div', { class: 'swatches' }, Object.entries(T.PALETTES).map(([k, p]) => el('button', { type: 'button', class: 'swb' + (r.palette === k ? ' on' : ''), style: `background:linear-gradient(135deg,${p.a} 55%,${p.x} 55%)`, title: p.name, 'aria-label': p.name, 'aria-pressed': String(r.palette === k), onclick: () => edit((rep) => { rep.palette = k; }, null, 'design') })))),
     el('div', { class: 'dsec' }, el('p', { class: 'nav-h' }, 'الصفحات'), toggle('غلاف', 'cover', true), toggle('فهرس المحتويات', 'toc', false), toggle('صفحة ختامية', 'closing', false), toggle('ترويسة الصفحات', 'header', true), toggle('ترقيم الصفحات', 'pageNumbers', true), toggle('أرقام عربية (٠١٢)', 'arabicDigits', false)),
     el('div', { class: 'dsec' }, el('p', { class: 'nav-h' }, 'أيقونة الغلاف'), el('div', { class: 'cover-icon-row' }, iconButton(o.coverIcon || '', (v) => opt('coverIcon', v), { variant: 'plain', title: 'اختيار أيقونة الغلاف', dialogTitle: 'أيقونة الغلاف' }), el('small', { class: 'muted' }, 'رمز زخرفي كبير على الغلاف'))),
@@ -258,13 +258,13 @@ window.addEventListener('beforeunload', (e) => { if (store.report && store.dirty
 /* ---------- البدء ---------- */
 (async function boot() {
   const meRes = await fetch('/api/me'); if (!meRes.ok) return;
-  const me = await meRes.json(); store.user = me.username;
+  const me = await meRes.json(); store.user = me.username; store.allowed = me.allowedTemplates;
   mountUserChip($('#user-chip'), me);
   if (me.role === 'admin') $('#admin-link').hidden = false;
   if (me.inbox) { const l = $('#lnk-list'); l.textContent = `التقارير (${me.inbox})`; l.title = 'لديك تقارير بانتظار الاعتماد'; l.href = '/list.html?scope=inbox'; }
   await P.loadConfig();
   $('#orgname').textContent = P.config.orgName || '';
-  buildGallery($('#gallery-root'), startFromTemplate);
+  buildGallery($('#gallery-root'), startFromTemplate, me.allowedTemplates);
   draftBanner();
   const id = new URLSearchParams(location.search).get('edit');
   if (id) {

@@ -216,6 +216,8 @@ async function handleApi(req, res, url, p) {
   if (p.startsWith('/api/admin/')) {
     if (user.role !== 'admin') return json(res, 403, { error: 'للمسؤول فقط' });
     if (p === '/api/admin/users' && method === 'GET') return json(res, 200, auth.listUsers());
+    if (p === '/api/admin/settings' && method === 'GET') return json(res, 200, auth.getSettings());
+    if (p === '/api/admin/settings' && method === 'PUT') { try { const b = JSON.parse(await readBody(req, 20000)); const st = auth.setSettings(b); store.audit({ action: 'settings-update', by: user.username, defaultTemplates: st.defaultTemplates }); return json(res, 200, st); } catch (e) { return json(res, 400, { error: e.message }); } }
     if (p === '/api/admin/audit' && method === 'GET') return json(res, 200, store.readAudit(Math.min(500, parseInt(url.searchParams.get('n'), 10) || 150)));
     try {
       if (p === '/api/admin/users' && method === 'POST') {
@@ -226,7 +228,7 @@ async function handleApi(req, res, url, p) {
       const m = p.match(/^\/api\/admin\/users\/([a-z0-9._-]+)(\/password)?$/);
       if (m) {
         if (m[2] && method === 'POST') { const b = JSON.parse(await readBody(req, 20000)); await auth.setPassword(m[1], b.password); store.audit({ action: 'password-reset', by: user.username, user: m[1] }); return json(res, 200, { ok: true }); }
-        if (!m[2] && method === 'PATCH') { const b = JSON.parse(await readBody(req, 20000)); const u = auth.updateUser(m[1], b, user.username); store.audit({ action: 'user-update', by: user.username, user: m[1], patch: { role: b.role, disabled: b.disabled } }); return json(res, 200, u); }
+        if (!m[2] && method === 'PATCH') { const b = JSON.parse(await readBody(req, 20000)); const u = auth.updateUser(m[1], b, user.username); store.audit({ action: 'user-update', by: user.username, user: m[1], patch: { role: b.role, disabled: b.disabled, allowedTemplates: b.allowedTemplates } }); return json(res, 200, u); }
         if (!m[2] && method === 'DELETE') { auth.deleteUser(m[1], user.username); store.audit({ action: 'user-delete', by: user.username, user: m[1] }); return json(res, 200, { ok: true }); }
       }
     } catch (e) { return json(res, 400, { error: e.message }); }
@@ -242,6 +244,7 @@ async function handleApi(req, res, url, p) {
   if (p === '/api/reports' && method === 'POST') {
     const data = JSON.parse(await readBody(req));
     if (!str(data.title).trim()) return json(res, 400, { error: 'عنوان التقرير مطلوب' });
+    if (!auth.canUseTemplate(user, clean(data).template)) return json(res, 403, { error: 'نوع هذا التقرير غير مسموح لحسابك. تواصل مع مسؤول النظام.' });
     const id = Date.now().toString(36) + '-' + crypto.randomBytes(3).toString('hex'), now = new Date().toISOString();
     await writeReport(id, data, { owner: user.username, ownerName: user.name, workflow: { status: 'draft' }, history: [{ at: now, by: user.username, byName: user.name, action: 'create', note: '' }], createdAt: now, updatedAt: now });
     store.audit({ action: 'report-create', by: user.username, id });
@@ -259,6 +262,8 @@ async function handleApi(req, res, url, p) {
     if (!acc.edit) return json(res, 403, { error: WF.wf(rep).status === 'approved' ? 'التقرير معتمد ولا يمكن تعديله' : WF.wf(rep).status === 'submitted' ? 'التقرير بانتظار الاعتماد. اسحبه أولاً لتعديله' : 'غير مصرّح لك بالتعديل' });
     const data = JSON.parse(await readBody(req));
     if (!str(data.title).trim()) return json(res, 400, { error: 'عنوان التقرير مطلوب' });
+    const nt = clean(data).template;
+    if (nt !== rep.template && !auth.canUseTemplate(user, nt)) return json(res, 403, { error: 'نوع القالب المختار غير مسموح لحسابك' });
     await writeReport(id, data, { owner: rep.owner, ownerName: rep.ownerName, workflow: rep.workflow, history: rep.history, createdAt: rep.createdAt, updatedAt: new Date().toISOString() });
     store.audit({ action: 'report-update', by: user.username, id });
     return json(res, 200, { id, url: '/reports/' + id + '.html' });
