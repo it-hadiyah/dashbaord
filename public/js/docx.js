@@ -164,8 +164,19 @@ async function chartXml(ctx, c) {
   }
   return out;
 }
+async function svgPathToPng(path) {
+  const txt = await (await fetch(path)).text();
+  const vb = txt.match(/viewBox="[\d.\-]+ [\d.\-]+ ([\d.]+) ([\d.]+)"/); const w = vb ? +vb[1] : 100, h = vb ? +vb[2] : 100, k = 600 / Math.max(w, h);
+  const svg = txt.replace('<svg ', `<svg width="${Math.round(w * k)}" height="${Math.round(h * k)}" `);
+  const img = await loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+  return { bytes: await toPng(img, Math.round(w * k), Math.round(h * k), null), w: w * k, h: h * k };
+}
 async function imageXml(ctx, c) {
   if (!c.src) return '';
+  if (c.src.startsWith('/')) {
+    const p = await svgPathToPng(c.src), hmax = Math.min(parseInt(c.height, 10) || 220, 160) * 9525, k = Math.min(hmax / (p.h * 9525), 1);
+    return para(drawing(ctx, addMedia(ctx, p.bytes, 'png'), Math.round(p.w * 9525 * k), Math.round(p.h * 9525 * k), c.caption || 'أيقونة'), { after: 60, line: 240 }) + (c.caption ? para(run(ctx, c.caption, { size: 9.5, color: '647385' }), { after: 120 }) : '');
+  }
   const img = await loadImg(c.src);
   const maxW = CONTENT_W * 635, maxH = (parseInt(c.height, 10) || 220) * 9525;
   let w = img.naturalWidth || 800, h = img.naturalHeight || 600; const k = Math.min(maxW / (w * 9525), maxH / (h * 9525), 1);

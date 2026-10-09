@@ -7,6 +7,7 @@ import { store, on, edit, select } from './store.js';
 import { sectionEditor, metaEditor, segmented, field, textInput } from './editors.js';
 import * as P from './preview.js';
 import { buildGallery } from './gallery.js';
+import { iconButton } from './iconpicker.js';
 
 let navTab = 'sections';
 let secFilter = '';
@@ -130,6 +131,7 @@ function designPanel() {
     el('div', { class: 'dsec' }, el('p', { class: 'nav-h' }, 'القالب'), el('div', { class: 'tpl-list' }, T.TEMPLATES.map((t) => el('button', { type: 'button', class: 'tpl-opt' + (t.id === r.template ? ' on' : ''), onclick: async () => { if (t.id === r.template) return; S.applyTemplate(t.id); toast('تم تغيير الشكل مع الاحتفاظ بمحتواك'); } }, el('span', {}, t.name), el('small', {}, t.cover === 'hero' ? 'غلاف كامل' : t.cover === 'band' ? 'غلاف بشريط' : t.cover === 'side' ? 'غلاف جانبي' : t.cover === 'split' ? 'غلاف مائل' : 'غلاف بسيط'))))),
     el('div', { class: 'dsec' }, el('p', { class: 'nav-h' }, 'ألوان التقرير'), el('div', { class: 'swatches' }, Object.entries(T.PALETTES).map(([k, p]) => el('button', { type: 'button', class: 'swb' + (r.palette === k ? ' on' : ''), style: `background:linear-gradient(135deg,${p.a} 55%,${p.x} 55%)`, title: p.name, 'aria-label': p.name, 'aria-pressed': String(r.palette === k), onclick: () => edit((rep) => { rep.palette = k; }, null, 'design') })))),
     el('div', { class: 'dsec' }, el('p', { class: 'nav-h' }, 'الصفحات'), toggle('غلاف', 'cover', true), toggle('فهرس المحتويات', 'toc', false), toggle('صفحة ختامية', 'closing', false), toggle('ترويسة الصفحات', 'header', true), toggle('ترقيم الصفحات', 'pageNumbers', true), toggle('أرقام عربية (٠١٢)', 'arabicDigits', false)),
+    el('div', { class: 'dsec' }, el('p', { class: 'nav-h' }, 'أيقونة الغلاف'), el('div', { class: 'cover-icon-row' }, iconButton(o.coverIcon || '', (v) => opt('coverIcon', v), { variant: 'plain', title: 'اختيار أيقونة الغلاف', dialogTitle: 'أيقونة الغلاف' }), el('small', { class: 'muted' }, 'رمز زخرفي كبير على الغلاف'))),
     el('div', { class: 'dsec' }, el('p', { class: 'nav-h' }, 'هوامش الصفحة'), segmented([['narrow', 'ضيقة'], ['normal', 'عادية'], ['wide', 'واسعة']], o.margins || 'normal', (v) => opt('margins', v), 'هوامش الصفحة')),
     el('div', { class: 'dsec' }, field('نص التذييل', textInput(o.footerText || '', (v) => opt('footerText', v), { ph: 'يظهر أسفل كل صفحة' }))));
   return wrap;

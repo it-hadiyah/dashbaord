@@ -42,7 +42,7 @@
         const h = preset && preset.headers ? preset.headers.slice() : ['', '', ''];
         return { headers: h, rows: [Array(h.length).fill(''), Array(h.length).fill('')], zebra: true };
       }
-      case 'kpi': return { style: 'cards', items: (preset && preset.labels ? preset.labels : ['', '', '']).map((label) => ({ label, value: '', trend: '' })) };
+      case 'kpi': return { style: 'cards', items: (preset && preset.labels ? preset.labels : ['', '', '']).map((label) => ({ label, value: '', trend: '', icon: '' })) };
       case 'chart': return { kind: (preset && preset.kind) || 'bar', unit: '', data: [{ label: '', value: '' }, { label: '', value: '' }, { label: '', value: '' }] };
       case 'progress': return { items: (preset && preset.labels ? preset.labels : ['', '']).map((label) => ({ label, value: '' })) };
       case 'timeline': return { items: [{ date: '', title: '', desc: '', status: 'todo' }, { date: '', title: '', desc: '', status: 'todo' }] };
@@ -55,7 +55,7 @@
   function makeSection(type, title, o) {
     o = o || {};
     return {
-      id: uid(), type, title: title || '', visible: true, width: o.width || 'full',
+      id: uid(), type, title: title || '', icon: '', visible: true, width: o.width || 'full',
       hint: o.hint || '',
       content: o.sample && o.useSample ? JSON.parse(JSON.stringify(o.sample)) : emptyContent(type, o),
     };
@@ -63,16 +63,16 @@
 
   // اختصار لتعريف قسم داخل قالب
   const sec = (type, title, hint, extra) => Object.assign({ type, title, hint }, extra || {});
-  const K = (label, value, trend) => ({ label, value, trend: trend || '' });
+  const K = (label, value, trend, icon) => ({ label, value, trend: trend || '', icon: icon || '' });
 
   const TEMPLATES = [
     {
-      id: 'annual', name: 'التقرير السنوي المؤسسي', category: 'إدارية', cover: 'hero', palette: 'hadiyah', head: 'bar',
+      coverIcon: 'ornament', id: 'annual', name: 'التقرير السنوي المؤسسي', category: 'إدارية', cover: 'hero', palette: 'hadiyah', head: 'bar',
       desc: 'غلاف راقٍ وإنجازات ومؤشرات ورسوم بيانية لعام كامل.', toc: true, closing: true,
       sampleTitle: 'التقرير السنوي', sampleSub: 'حصاد عام من العطاء',
       sections: [
         sec('text', 'كلمة رئيس مجلس الإدارة', 'اكتب كلمة قصيرة تلخص مسيرة العام ورؤية المرحلة القادمة.', { sample: '<p>شهد هذا العام نمواً ملحوظاً في برامج الجمعية ومستفيديها، ونتطلع لمزيد من العطاء في العام القادم.</p>' }),
-        sec('kpi', 'أبرز الأرقام', 'أدخل أهم الأرقام الرئيسية للعام مع نسبة تغيّرها عن العام السابق.', { labels: ['المستفيدون', 'البرامج', 'المتطوعون', 'الشراكات'], sample: { style: 'cards', items: [K('المستفيدون', '12,450', '+18%'), K('البرامج', '34', '+6%'), K('المتطوعون', '860', '+12%'), K('الشراكات', '27', '+4%')] } }),
+        sec('kpi', 'أبرز الأرقام', 'أدخل أهم الأرقام الرئيسية للعام مع نسبة تغيّرها عن العام السابق.', { labels: ['المستفيدون', 'البرامج', 'المتطوعون', 'الشراكات'], sample: { style: 'cards', items: [K('المستفيدون', '12,450', '+18%', 'pilgrims'), K('البرامج', '34', '+6%', 'mushaf'), K('المتطوعون', '860', '+12%', 'hospitality'), K('الشراكات', '27', '+4%', 'madinah')] } }),
         sec('chart', 'نمو المستفيدين الشهري', 'أدخل عدد المستفيدين لكل شهر أو ربع.', { kind: 'area', width: 'half', sample: { kind: 'area', unit: '', data: [{ label: 'الربع 1', value: '2400' }, { label: 'الربع 2', value: '3100' }, { label: 'الربع 3', value: '3300' }, { label: 'الربع 4', value: '3650' }] } }),
         sec('chart', 'توزيع الإنفاق على البرامج', 'أدخل نسبة أو مبلغ كل برنامج.', { kind: 'donut', width: 'half', sample: { kind: 'donut', unit: '', data: [{ label: 'الرعاية', value: '45' }, { label: 'التعليم', value: '25' }, { label: 'الصحة', value: '20' }, { label: 'أخرى', value: '10' }] } }),
         sec('timeline', 'محطات العام', 'اذكر أهم المحطات والإنجازات مرتبة زمنياً.', { sample: { items: [{ date: 'يناير', title: 'إطلاق الخطة السنوية', desc: '', status: 'done' }, { date: 'يونيو', title: 'اعتماد الشراكة الاستراتيجية', desc: '', status: 'done' }, { date: 'ديسمبر', title: 'ختام العام وتقييم الأثر', desc: '', status: 'active' }] } }),
@@ -183,7 +183,7 @@
       ],
     },
     {
-      id: 'programs', name: 'تقرير البرامج والخدمات', category: 'إدارية', cover: 'split', palette: 'hadiyah', head: 'bar',
+      coverIcon: 'hospitality', id: 'programs', name: 'تقرير البرامج والخدمات', category: 'إدارية', cover: 'split', palette: 'hadiyah', head: 'bar',
       desc: 'البرامج المنفذة والمستفيدون ومستوى الجودة.', toc: false, closing: false,
       sampleTitle: 'تقرير البرامج والخدمات', sampleSub: 'الأداء والمستفيدون',
       sections: [
@@ -196,12 +196,12 @@
       ],
     },
     {
-      id: 'impact', name: 'تقرير قياس الأثر', category: 'تأثير', cover: 'hero', palette: 'plum', head: 'underline',
+      coverIcon: 'dua', id: 'impact', name: 'تقرير قياس الأثر', category: 'تأثير', cover: 'hero', palette: 'plum', head: 'underline',
       desc: 'قياس الأثر الاجتماعي بالمدخلات والمخرجات والنتائج.', toc: true, closing: true,
       sampleTitle: 'تقرير قياس الأثر', sampleSub: 'من المخرجات إلى الأثر',
       sections: [
         sec('text', 'منهجية القياس', 'كيف قسّتم الأثر؟ وما الأدوات المستخدمة؟'),
-        sec('kpi', 'مؤشرات الأثر', 'أدخل أهم مؤشرات الأثر.', { labels: ['الأثر الرئيسي', 'نسبة التحسن', 'عدد المتأثرين'], sample: { style: 'highlights', items: [K('الأسر المستقرة', '1,240', '+22%'), K('نسبة التحسن', '71%', '+9%'), K('المتأثرون', '5,800', '+15%')] } }),
+        sec('kpi', 'مؤشرات الأثر', 'أدخل أهم مؤشرات الأثر.', { labels: ['الأثر الرئيسي', 'نسبة التحسن', 'عدد المتأثرين'], sample: { style: 'highlights', items: [K('الأسر المستقرة', '1,240', '+22%', 'dua'), K('نسبة التحسن', '71%', '+9%'), K('المتأثرون', '5,800', '+15%')] } }),
         sec('chart', 'قبل وبعد البرنامج', 'قارن القيم قبل البرنامج وبعده.', { kind: 'bar', width: 'half' }),
         sec('progress', 'تحقق النتائج', 'أدخل نسبة تحقق كل نتيجة.', { labels: ['النتيجة 1', 'النتيجة 2', 'النتيجة 3'], width: 'half' }),
         sec('text', 'قصص الأثر', 'اذكر قصصاً ملهمة بإذن أصحابها.'),
@@ -209,7 +209,7 @@
       ],
     },
     {
-      id: 'results', name: 'تقرير الإنجازات والنتائج', category: 'إدارية', cover: 'band', palette: 'hadiyah', head: 'pill',
+      coverIcon: 'mushaf', id: 'results', name: 'تقرير الإنجازات والنتائج', category: 'إدارية', cover: 'band', palette: 'hadiyah', head: 'pill',
       desc: 'ما أُنجز من مهام ومبادرات وما تحقق من نتائج.', toc: false, closing: false,
       sampleTitle: 'تقرير الإنجازات والنتائج', sampleSub: 'ما أُنجز وما تحقق',
       sections: [
@@ -244,7 +244,7 @@
   const CATEGORIES = ['الكل', 'إدارية', 'تقنية', 'مالية', 'موارد', 'تأثير', 'عام'];
   const byId = (id) => TEMPLATES.find((t) => t.id === id) || TEMPLATES[TEMPLATES.length - 1];
 
-  const DEFAULT_OPTIONS = { cover: true, toc: false, closing: false, header: true, pageNumbers: true, margins: 'normal', footerText: '' };
+  const DEFAULT_OPTIONS = { cover: true, toc: false, closing: false, header: true, pageNumbers: true, margins: 'normal', footerText: '', coverIcon: '' };
 
   function createReport(templateId, opts) {
     opts = opts || {};
@@ -254,7 +254,7 @@
       title: opts.sample ? t.sampleTitle : '', subtitle: opts.sample ? t.sampleSub : '',
       period: opts.sample ? 'الفترة: 2026' : '', employee: '', department: '', date: new Date().toISOString().slice(0, 10),
       palette: t.palette,
-      options: Object.assign({}, DEFAULT_OPTIONS, { toc: !!t.toc, closing: !!t.closing }),
+      options: Object.assign({}, DEFAULT_OPTIONS, { toc: !!t.toc, closing: !!t.closing, coverIcon: t.coverIcon || '' }),
       sections: t.sections.map((s) => makeSection(s.type, s.title, Object.assign({}, s, { useSample: !!opts.sample }))),
     };
   }

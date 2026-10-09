@@ -15,6 +15,7 @@ const REPORTS_DIR = path.join(__dirname, 'reports');
 const MAX_BODY = 24 * 1024 * 1024;
 const MAX_IMAGE = 3 * 1024 * 1024;
 const ID_RE = /^[a-z0-9-]{3,40}$/;
+const slug = (v) => (R.SLUG.test(String(v || '')) ? String(v) : '');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -38,7 +39,7 @@ function cleanContent(type, c) {
       headers: arr(c.headers, 12).map((h) => str(h, 200)),
       rows: arr(c.rows, 500).map((r) => arr(r, 12).map((x) => str(x, 1000))),
     };
-    case 'kpi': return { style: c.style === 'highlights' ? 'highlights' : 'cards', items: arr(c.items, 24).map((k) => ({ label: str(k && k.label, 200), value: str(k && k.value, 100), trend: str(k && k.trend, 30) })) };
+    case 'kpi': return { style: c.style === 'highlights' ? 'highlights' : 'cards', items: arr(c.items, 24).map((k) => ({ icon: slug(k && k.icon), label: str(k && k.label, 200), value: str(k && k.value, 100), trend: str(k && k.trend, 30) })) };
     case 'chart': return {
       kind: ['bar', 'line', 'area', 'donut', 'hbar'].includes(c.kind) ? c.kind : 'bar', unit: str(c.unit, 20),
       data: arr(c.data, 60).map((d) => ({ label: str(d && d.label, 200), value: str(d && d.value, 50) })),
@@ -65,11 +66,11 @@ function clean(d) {
     employee: str(d.employee, 200), department: str(d.department, 200), date: str(d.date, 30),
     options: {
       cover: o.cover !== false, toc: !!o.toc, closing: !!o.closing, header: o.header !== false, pageNumbers: o.pageNumbers !== false,
-      margins: ['narrow', 'normal', 'wide'].includes(o.margins) ? o.margins : 'normal', footerText: str(o.footerText, 300), arabicDigits: !!o.arabicDigits,
+      margins: ['narrow', 'normal', 'wide'].includes(o.margins) ? o.margins : 'normal', coverIcon: slug(o.coverIcon), footerText: str(o.footerText, 300), arabicDigits: !!o.arabicDigits,
     },
     sections: arr(d.sections, 80).map((s) => {
       const type = T.TYPES.includes(s && s.type) ? s.type : 'text';
-      return { id: /^[A-Za-z0-9_-]{1,40}$/.test(s && s.id) ? s.id : T.uid(), type, title: str(s && s.title, 200), visible: !(s && s.visible === false), width: s && s.width === 'half' ? 'half' : 'full', hint: str(s && s.hint, 300), content: cleanContent(type, s && s.content) };
+      return { id: /^[A-Za-z0-9_-]{1,40}$/.test(s && s.id) ? s.id : T.uid(), type, title: str(s && s.title, 200), icon: slug(s && s.icon), visible: !(s && s.visible === false), width: s && s.width === 'half' ? 'half' : 'full', hint: str(s && s.hint, 300), content: cleanContent(type, s && s.content) };
     }),
   };
 }

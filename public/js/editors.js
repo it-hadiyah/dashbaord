@@ -3,6 +3,7 @@ import { el, btn, iconBtn, toast } from './ui.js';
 import { icon } from './icons.js';
 import { edit, store } from './store.js';
 import * as T from './templates.js';
+import { iconButton, pickIcon, iconSrc } from './iconpicker.js';
 
 const RBR = window.RBR;
 let uidn = 0;
@@ -60,7 +61,9 @@ function rows(s, { get, cols, make, addLabel, min = 1 }) {
       const row = el('div', { class: 'grow', style: `--cols:${cols.map((c) => c.w || '1fr').join(' ')} 84px` });
       cols.forEach((c, ci) => {
         let inp;
-        if (c.type === 'select') {
+        if (c.type === 'icon') {
+          inp = iconButton(it[c.key] || '', (v) => upd(s.id, null, (x) => { get(x)[i][c.key] = v; }), { title: 'أيقونة المؤشر' });
+        } else if (c.type === 'select') {
           inp = el('select', { 'aria-label': c.label, onchange: (e) => upd(s.id, null, (x) => { get(x)[i][c.key] = e.target.value; }) }, c.options.map(([v, t]) => el('option', { value: v, selected: it[c.key] === v }, t)));
         } else {
           inp = el('input', { type: 'text', value: it[c.key] || '', placeholder: c.ph || '', inputmode: c.inputmode, 'aria-label': c.label + ' ' + (i + 1), autocomplete: 'off',
@@ -146,8 +149,8 @@ function tableEditor(s) {
 
 function kpiEditor(s) {
   return el('div', {}, field('شكل العرض', segmented([['cards', 'بطاقات'], ['highlights', 'أرقام بارزة']], s.content.style, (v) => upd(s.id, null, (x) => { x.content.style = v; }), 'شكل العرض')),
-    rows(s, { get: (x) => x.content.items, make: () => ({ label: '', value: '', trend: '' }), addLabel: 'إضافة مؤشر', min: 1,
-      cols: [{ key: 'label', label: 'التسمية', ph: 'عدد المستفيدين', w: '1.5fr' }, { key: 'value', label: 'القيمة', ph: '3,123', w: '1fr' }, { key: 'trend', label: 'التغيّر', ph: '+4% أو -7%', w: '1fr' }] }),
+    rows(s, { get: (x) => x.content.items, make: () => ({ icon: '', label: '', value: '', trend: '' }), addLabel: 'إضافة مؤشر', min: 1,
+      cols: [{ key: 'icon', label: 'أيقونة', type: 'icon', w: '46px' }, { key: 'label', label: 'التسمية', ph: 'عدد المستفيدين', w: '1.5fr' }, { key: 'value', label: 'القيمة', ph: '3,123', w: '1fr' }, { key: 'trend', label: 'التغيّر', ph: '+4% أو -7%', w: '1fr' }] }),
     el('p', { class: 'tip' }, 'التغيّر اختياري: ابدأه بعلامة - لإظهار سهم هابط.'));
 }
 
@@ -197,6 +200,7 @@ function imageEditor(s) {
     drop.addEventListener('drop', (e) => { e.preventDefault(); pick(e.dataTransfer.files[0]); });
     drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drop.querySelector('input').click(); } });
     wrap.replaceChildren(drop,
+      btn('اختيار من أيقونات الهوية', { icon: 'sparkle', cls: 'sm ghost', onclick: async () => { const v = await pickIcon({ variant: 'plain', title: 'أيقونات الهوية', allowNone: false }); if (v) { upd(s.id, null, (x) => { x.content.src = iconSrc(v, 'plain'); }, 'structure'); draw(); } } }),
       c.src ? btn('إزالة الصورة', { icon: 'trash', cls: 'sm ghost danger-text', onclick: () => { upd(s.id, null, (x) => { x.content.src = ''; }, 'structure'); draw(); } }) : null,
       field('تعليق على الصورة', textInput(c.caption, (v) => upd(s.id, 'cap', (x) => { x.content.caption = v; }), { ph: 'اختياري' })),
       field('أسلوب العرض', segmented([['contain', 'احتواء كامل'], ['cover', 'ملء الإطار']], c.fit, (v) => upd(s.id, null, (x) => { x.content.fit = v; }), 'أسلوب العرض')),
@@ -224,7 +228,8 @@ export function sectionEditor(s) {
     s.hint ? el('div', { class: 'hint', role: 'note' }, el('span', { html: icon('sparkle', 16) }), el('span', {}, s.hint)) : null,
     s.type === 'pagebreak' ? null : field('عنوان القسم', textInput(s.title, (v) => { upd(s.id, 'title', (x) => { x.title = v; }, 'titles'); const h = document.querySelector('.ed-head h2'); if (h) h.textContent = v || info.name; }, { ph: 'مثال: ' + info.name })),
     body,
-    s.type === 'pagebreak' || s.type === 'text' && false ? null : field('عرض القسم في الصفحة', segmented([['full', 'عرض كامل'], ['half', 'نصف العرض']], s.width, (v) => upd(s.id, null, (x) => { x.width = v; }, 'structure'), 'عرض القسم'), 'القسمان المتجاوران بنصف العرض يُعرضان جنباً إلى جنب.'));
+    s.type === 'pagebreak' ? null : field('أيقونة بجانب العنوان (اختياري)', iconButton(s.icon || '', (v) => upd(s.id, null, (x) => { x.icon = v; }), { title: 'اختيار أيقونة للقسم', dialogTitle: 'أيقونة القسم' }), 'تظهر بجوار عنوان القسم في التقرير.'),
+    s.type === 'pagebreak' ? null : field('عرض القسم في الصفحة', segmented([['full', 'عرض كامل'], ['half', 'نصف العرض']], s.width, (v) => upd(s.id, null, (x) => { x.width = v; }, 'structure'), 'عرض القسم'), 'القسمان المتجاوران بنصف العرض يُعرضان جنباً إلى جنب.'));
 }
 
 /* ---------- معلومات التقرير ---------- */

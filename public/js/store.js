@@ -97,7 +97,7 @@ export function applyTemplate(id) {
   const t = T.byId(id);
   edit((r) => {
     r.template = t.id; r.palette = t.palette;
-    r.options.toc = !!t.toc; r.options.closing = !!t.closing;
+    r.options.toc = !!t.toc; r.options.closing = !!t.closing; r.options.coverIcon = t.coverIcon || '';
   }, null, 'design');
 }
 

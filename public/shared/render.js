@@ -115,7 +115,9 @@
     }
   }
 
-  const SAFE_IMG = /^data:image\/(?:png|jpe?g|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
+  const SAFE_IMG = /^(?:data:image\/(?:png|jpe?g|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+|\/brand\/icons\/(?:hex|plain)\/[a-z0-9-]{1,40}\.svg)$/;
+  const SLUG = /^[a-z0-9-]{1,40}$/;
+  const iconUrl = (slug, v) => (SLUG.test(slug || '') ? `/brand/icons/${v || 'hex'}/${slug}.svg` : '');
 
   function makeRenderer(report, ctx) {
     ctx = ctx || {};
@@ -142,7 +144,8 @@
           return `<div class="kpis ${c.style === 'highlights' ? 'hl' : 'cards'}">${items.map((k) => {
             const t = String(k.trend || '').trim(), down = /^[-−]/.test(t);
             const trend = t ? `<em class="${down ? 'dn' : 'up'}"><span aria-hidden="true">${down ? '▼' : '▲'}</span> <bdi>${E(t.replace(/^[-−+]/, ''))}</bdi></em>` : '';
-            return `<div class="kpi"><span class="kl">${E(k.label)}</span><b class="kv"><bdi>${E(k.value)}</bdi></b>${trend}</div>`;
+            const ic = iconUrl(k.icon) ? `<img class="kpi-ic" src="${iconUrl(k.icon)}" alt="">` : '';
+            return `<div class="kpi">${ic}<span class="kl">${E(k.label)}</span><b class="kv"><bdi>${E(k.value)}</bdi></b>${trend}</div>`;
           }).join('')}</div>`;
         }
         case 'chart': return `<figure class="chart ck-${escRaw(c.kind || 'bar')}">${chartSvg(c, E)}</figure>`;
@@ -166,7 +169,8 @@
       if (s.type === 'pagebreak') return `<div class="blk pb" data-sid="${escRaw(s.id)}"></div>`;
       const empty = isEmptySection(s);
       if (empty && !ctx.preview) return '';
-      const title = s.title ? `<h2 class="bt">${E(s.title)}</h2>` : '';
+      const sic = iconUrl(s.icon) ? `<img class="bt-ic" src="${iconUrl(s.icon)}" alt="">` : '';
+      const title = s.title || sic ? `<h2 class="bt">${sic}${E(s.title)}</h2>` : '';
       const w = s.width === 'half' ? 'half' : 'full';
       if (empty) return `<section class="blk ph w-${w}" data-sid="${escRaw(s.id)}" data-title="${escRaw(s.title)}">${title}<p class="phm">${E(s.hint || 'سيظهر هنا ما تكتبه في هذا القسم')}</p></section>`;
       return `<section class="blk b-${s.type} w-${w}" data-sid="${escRaw(s.id)}" data-title="${escRaw(s.title)}">${title}${body(s)}</section>`;
@@ -188,7 +192,7 @@
       return `<div class="cover-src cv-${escRaw(t.cover)}">
         <div class="cv-top">${logoHtml('cv-logo', { light: lightCover })}<div class="cv-org"><strong>${E(cfg.orgName)}</strong><span>${E(cfg.orgSubName)}</span></div></div>
         <div class="cv-main">${report.sample ? '<div class="ribbon">بيانات تجريبية</div>' : ''}<small class="cv-kind">${E(t.name)}</small><h1>${E(report.title || 'عنوان التقرير')}</h1>${report.subtitle ? `<p class="cv-sub">${E(report.subtitle)}</p>` : ''}${report.period ? `<p class="cv-period">${E(report.period)}</p>` : ''}</div>
-        <div class="cv-meta">${meta}</div>${patternHtml('cv-pattern', t.cover === 'hero')}</div>`;
+        <div class="cv-meta">${meta}</div>${iconUrl(opts.coverIcon, 'plain') ? `<img class="cv-icon" src="${iconUrl(opts.coverIcon, 'plain')}" alt="">` : ''}${patternHtml('cv-pattern', t.cover === 'hero')}</div>`;
     }
 
     function closing() {
@@ -250,5 +254,5 @@
 </html>`;
   }
 
-  return { sanitize, plain, chartSvg, isEmptySection, makeRenderer, renderSource, renderPage, escRaw, num, fmt, SAFE_IMG };
+  return { sanitize, plain, chartSvg, isEmptySection, makeRenderer, renderSource, renderPage, escRaw, num, fmt, SAFE_IMG, SLUG };
 });

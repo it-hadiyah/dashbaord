@@ -1,0 +1,176 @@
+[
+ {
+  "id": "rites",
+  "label": "أداء النسك",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "jamarat",
+  "label": "الجمرات",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "quran",
+  "label": "القرآن",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "kaaba",
+  "label": "الكعبة",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "madinah",
+  "label": "المدينة المنورة",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "mushaf",
+  "label": "المصحف",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "woman",
+  "label": "امرأة",
+  "hex": true,
+  "plain": false
+ },
+ {
+  "id": "dates",
+  "label": "تمر",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "dua",
+  "label": "دعاء",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "man-sujud",
+  "label": "رجل ساجد",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "ihram-man",
+  "label": "رجل محرم",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "man-dua",
+  "label": "رجل يدعو",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "man-dua-2",
+  "label": "رجل يدعو (2)",
+  "hex": true,
+  "plain": false
+ },
+ {
+  "id": "man-praying",
+  "label": "رجل يصلي",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "ornament",
+  "label": "زخرفة إسلامية",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "prayer-rug",
+  "label": "سجادة",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "water",
+  "label": "سقيا ماء",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "lady-pilgrim",
+  "label": "سيدة معتمرة",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "saudi-man",
+  "label": "شخصية سعودية",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "hospitality",
+  "label": "ضيافة",
+  "hex": true,
+  "plain": false
+ },
+ {
+  "id": "tawaf",
+  "label": "طواف",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "arafah",
+  "label": "عرفة",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "lantern",
+  "label": "فانوس",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "dome",
+  "label": "قبة",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "coffee",
+  "label": "قهوة",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "mosque",
+  "label": "مسجد",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "pilgrims",
+  "label": "معتمر ومعتمرة",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "crescent",
+  "label": "هلال",
+  "hex": true,
+  "plain": true
+ },
+ {
+  "id": "crescent-mosque",
+  "label": "هلال ومسجد",
+  "hex": true,
+  "plain": true
+ }
+]
