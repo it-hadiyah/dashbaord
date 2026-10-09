@@ -100,8 +100,8 @@ body.preview .blk { cursor: pointer; } body.preview .blk:hover { outline: 2px so
 body.thumb { overflow: hidden; background: #fff; } body.thumb .pages { padding: 0; gap: 0; } body.thumb .sheet { box-shadow: none; } body.thumb .blk { pointer-events: none; cursor: default; } body.thumb .blk:hover { outline: none; }
 
 /* أيقونات الهوية */
-.bt-ic { height: 9mm; width: auto; vertical-align: middle; margin-inline-start: 8px; }
-.kpi-ic { height: 12mm; width: auto; align-self: flex-start; margin-bottom: 4px; }
+.bt-ic { height: 9mm; width: auto; vertical-align: middle; margin-inline-start: 0; margin-inline-end: 12px; }
+.kpi-ic { height: 12mm; width: auto; align-self: flex-start; margin-bottom: 8px; }
 .cv-icon { position: absolute; left: 12mm; bottom: 40mm; width: 78mm; height: auto; opacity: .13; z-index: 0; pointer-events: none; }
 .cv-hero .cv-icon, .cv-split .cv-icon { filter: brightness(0) invert(1); opacity: .16; }
 .cv-split .cv-icon { bottom: auto; top: 24mm; left: 14mm; width: 60mm; }

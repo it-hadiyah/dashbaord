@@ -141,3 +141,7 @@ input[type='range'] { width: 100%; accent-color: var(--brand); } input[type='che
 .icon-btn { width: 40px; height: 40px; padding: 0; border: 2px dashed var(--border-strong); background: var(--surface); border-radius: var(--r-2); cursor: pointer; display: grid; place-items: center; color: var(--muted); } .icon-btn.has { border-style: solid; border-color: var(--brand); background: var(--brand-soft); } .icon-btn img { height: 26px; width: auto; max-width: 30px; } .icon-btn .plus { font-size: 20px; line-height: 1; } .icon-btn:hover { border-color: var(--brand); }
 .cover-icon-row { display: flex; align-items: center; gap: 10px; }
 .fld > .icon-btn { align-self: flex-start; }
+
+.icon-tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--border); } .icon-tab { font: inherit; border: 0; background: transparent; color: var(--muted); padding: 8px 14px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; } .icon-tab small { color: var(--muted); margin-inline-start: 4px; } .icon-tab.on { color: var(--brand); border-color: var(--brand); font-weight: 600; } .icon-tab:hover { color: var(--text); }
+.icon-h { grid-column: 1 / -1; margin: 10px 0 0; font-size: var(--fs-2); color: var(--muted); font-weight: 600; } .icon-h:first-child { margin-top: 0; }
+.dlg.wide { max-width: 640px; }
