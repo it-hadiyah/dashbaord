@@ -41,3 +41,7 @@ a { color: var(--d); }
 @media (max-width: 640px) { .body { grid-template-columns: 1fr; } .card.half { grid-column: 1 / -1; } .letterhead { flex-direction: column; gap: 8px; } }
 @page { size: A4; margin: 0; }
 @media print { body { background: #fff; } .page { margin: 0; box-shadow: none; max-width: none; } .noprint { display: none; } }
+
+.card.active { outline: 3px solid var(--c); outline-offset: 2px; }
+.card.placeholder { background: #f6f8fa; border: 2px dashed #cfd6de; }
+.card.placeholder p { color: #9aa5b1; }

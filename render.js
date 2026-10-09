@@ -67,7 +67,21 @@ function chartSvg(kind, data) {
   return `<div class="donut"><svg viewBox="0 0 200 200" role="img">${arcs}<text x="100" y="108" text-anchor="middle" class="big">${esc(centre)}</text></svg><div class="legend">${legend}</div></div>`;
 }
 
-function renderSection(s) {
+function isEmpty(s) {
+  const c = s.content;
+  if (s.type === 'text') return !String(c || '').trim();
+  if (s.type === 'list') return !(Array.isArray(c) && c.some((i) => String(i).trim()));
+  if (s.type === 'kpi') return !(Array.isArray(c) && c.some((k) => k && (k.label || k.value)));
+  if (s.type === 'table') return !(c && Array.isArray(c.rows) && c.rows.some((row) => row.some((x) => String(x).trim())));
+  if (s.type === 'chart') return !(c && Array.isArray(c.data) && c.data.some((d) => d && (d.label || d.value)));
+  return true;
+}
+
+function renderSection(s, i, opts) {
+  if (isEmpty(s)) {
+    if (!opts.preview) return '';
+    return `<section class="card full placeholder${i === opts.highlight ? ' active' : ''}">${s.title ? `<h2>${esc(s.title)}</h2>` : ''}<p>سيظهر هنا ما تكتبه في هذا القسم</p></section>`;
+  }
   const cls = s.width === 'half' ? 'half' : 'full';
   const title = s.title ? `<h2>${esc(s.title)}</h2>` : '';
   let inner = '';
@@ -99,10 +113,10 @@ function renderSection(s) {
     default:
       return '';
   }
-  return `<section class="card ${cls}${s.type === 'text' || s.type === 'list' || s.type === 'table' ? ' plain' : ''}">${inner}</section>`;
+  return `<section class="card ${cls}${s.type === 'text' || s.type === 'list' || s.type === 'table' ? ' plain' : ''}${i === opts.highlight ? ' active' : ''}">${inner}</section>`;
 }
 
-function renderReport(d, id) {
+function renderReport(d, id, opts = {}) {
   const cfg = loadConfig();
   const c = cfg.contact || {};
   const contact = [c.phone && `هاتف: ${esc(c.phone)}`, c.email && esc(c.email), c.website && esc(c.website), c.address && esc(c.address)].filter(Boolean).join(' · ');
@@ -127,12 +141,13 @@ function renderReport(d, id) {
   <div class="titlebar"><small>${esc(d.type)}</small><h1>${esc(d.title)}</h1></div>
   <div class="byline"><span>إعداد: <b>${esc(d.employee)}</b></span>${d.department ? `<span>الإدارة / القسم: <b>${esc(d.department)}</b></span>` : ''}</div>
   <main class="body">
-    ${(d.sections || []).map(renderSection).join('\n    ')}
+    ${(d.sections || []).map((s, i) => renderSection(s, i, opts)).join('\n    ')}
   </main>
   <footer class="letterfoot">
     <div>${esc(cfg.footerText)}</div>
     ${contact ? `<div>${contact}</div>` : ''}
   </footer>
+  ${opts.preview ? '<script>var a=document.querySelector(".active");if(a)a.scrollIntoView({block:"center"});</script>' : ''}
   <div class="actions noprint"><a href="/">تقرير جديد</a> · <a href="/list.html">كل التقارير</a> · <a href="javascript:window.print()">طباعة / حفظ PDF</a></div>
 </div>
 </body>

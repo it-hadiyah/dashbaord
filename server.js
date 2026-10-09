@@ -95,6 +95,11 @@ const server = http.createServer(async (req, res) => {
       await fs.promises.writeFile(path.join(REPORTS_DIR, id + '.html'), renderReport(data, id));
       return json(res, 201, { url: '/reports/' + id + '.html' });
     }
+    if (req.method === 'POST' && url.pathname === '/api/preview') {
+      const raw = JSON.parse(await readBody(req));
+      const html = renderReport(clean(raw), '—', { preview: true, highlight: Number.isInteger(raw.highlight) ? raw.highlight : -1 });
+      return send(res, 200, html, 'text/html; charset=utf-8');
+    }
     if (req.method === 'GET' && url.pathname === '/api/reports') return json(res, 200, await listReports());
     if (req.method === 'GET' && url.pathname.startsWith('/reports/')) {
       const name = url.pathname.slice('/reports/'.length);

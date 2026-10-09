@@ -7,35 +7,40 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<main class="form-page">
+<div class="shell">
   <nav><a href="/list.html">كل التقارير</a></nav>
-  <h1>إنشاء تقرير</h1>
 
-  <label class="tpl">نوع التقرير (يعبّي الأقسام تلقائياً وتقدر تعدّلها)
-    <select id="tpl"></select>
-  </label>
+  <section id="gallery">
+    <h1>اختر نموذج التقرير</h1>
+    <p class="sub">اختر النموذج الأقرب لتقريرك، وسأرشدك لتعبئة كل قسم خطوة بخطوة مع معاينة مباشرة.</p>
+    <div id="cards" class="cards"></div>
+  </section>
 
-  <form id="f">
-    <label>عنوان التقرير *<input name="title" required></label>
-    <label>اسم الموظف *<input name="employee" required></label>
-    <label>القسم / الإدارة<input name="department"></label>
-    <label>التاريخ<input type="date" name="date"></label>
-
-    <div class="wide" id="sections"></div>
-
-    <div class="wide adders">
-      <span>إضافة قسم:</span>
-      <button type="button" data-add="text">نص</button>
-      <button type="button" data-add="list">قائمة نقاط</button>
-      <button type="button" data-add="table">جدول</button>
-      <button type="button" data-add="kpi">أرقام ومؤشرات</button>
-      <button type="button" data-add="chart">رسم بياني</button>
+  <section id="wizard" hidden>
+    <div class="topbar">
+      <button type="button" id="back-gallery" class="ghost">← تغيير النموذج</button>
+      <div id="dots" class="dots"></div>
     </div>
-
-    <button class="wide primary" type="submit">إرسال وإنشاء التقرير</button>
-    <p id="msg" class="wide"></p>
-  </form>
-</main>
+    <div class="wiz">
+      <div class="panel">
+        <div id="step-count" class="step-count"></div>
+        <h2 id="step-title"></h2>
+        <p id="step-hint" class="hint"></p>
+        <div id="editor"></div>
+        <p id="msg" class="msg"></p>
+        <div class="nav">
+          <button type="button" id="prev" class="ghost">السابق</button>
+          <button type="button" id="skip" class="ghost">تخطي هذا القسم</button>
+          <button type="button" id="next" class="primary">التالي</button>
+        </div>
+      </div>
+      <div class="previewbox">
+        <div class="previewhead">معاينة مباشرة للتقرير</div>
+        <iframe id="preview" title="معاينة التقرير"></iframe>
+      </div>
+    </div>
+  </section>
+</div>
 <script src="/app.js"></script>
 </body>
 </html>
