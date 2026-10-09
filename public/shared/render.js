@@ -191,7 +191,7 @@
       const meta = [report.employee && `<div><span>إعداد</span><b>${E(report.employee)}</b></div>`, report.department && `<div><span>الإدارة / القسم</span><b>${E(report.department)}</b></div>`, report.date && `<div><span>التاريخ</span><b><bdi>${E(report.date)}</bdi></b></div>`].filter(Boolean).join('');
       return `<div class="cover-src cv-${escRaw(t.cover)}">
         <div class="cv-top">${logoHtml('cv-logo', { light: lightCover })}<div class="cv-org"><strong>${E(cfg.orgName)}</strong><span>${E(cfg.orgSubName)}</span></div></div>
-        <div class="cv-main">${report.sample ? '<div class="ribbon">بيانات تجريبية</div>' : ''}<small class="cv-kind">${E(t.name)}</small><h1>${E(report.title || 'عنوان التقرير')}</h1>${report.subtitle ? `<p class="cv-sub">${E(report.subtitle)}</p>` : ''}${report.period ? `<p class="cv-period">${E(report.period)}</p>` : ''}</div>
+        <div class="cv-main">${ctx.workflow && ctx.workflow.status === 'approved' ? '<div class="ribbon ok">معتمد</div>' : report.sample ? '<div class="ribbon">بيانات تجريبية</div>' : ''}<small class="cv-kind">${E(t.name)}</small><h1>${E(report.title || 'عنوان التقرير')}</h1>${report.subtitle ? `<p class="cv-sub">${E(report.subtitle)}</p>` : ''}${report.period ? `<p class="cv-period">${E(report.period)}</p>` : ''}</div>
         <div class="cv-meta">${meta}</div>${iconUrl(opts.coverIcon, 'plain') ? `<img class="cv-icon" src="${iconUrl(opts.coverIcon, 'plain')}" alt="">` : ''}${patternHtml('cv-pattern', t.cover === 'hero')}</div>`;
     }
 
@@ -202,8 +202,18 @@
       return `<div class="closing-src">${logoHtml('cl-logo', { light: true, vertical: true })}<h2>شكراً لكم</h2><p class="cl-org">${E(cfg.orgName)}</p>${lines}${patternHtml('cl-pattern', true)}</div>`;
     }
 
+    function stamp() {
+      const w = ctx.workflow;
+      if (!w || !w.status || w.status === 'draft' || ctx.preview) return '';
+      const day = (iso) => E(String(iso || '').slice(0, 10));
+      const note = (n) => (n ? `<p class="stn">${E(n)}</p>` : '');
+      if (w.status === 'approved') return `<section class="blk stamp ok"><div class="seal" aria-hidden="true">✓</div><div><b>تم اعتماد التقرير</b><p>اعتمده: ${E(w.decidedByName || '')} · بتاريخ <bdi>${day(w.decidedAt)}</bdi></p>${note(w.decisionNote)}</div></section>`;
+      if (w.status === 'submitted') return `<section class="blk stamp wait"><div><b>بانتظار الاعتماد</b><p>أُرسل إلى: ${E(w.sharedWithName || '')} · بتاريخ <bdi>${day(w.submittedAt)}</bdi></p></div></section>`;
+      return `<section class="blk stamp ret"><div><b>أُعيد للتعديل</b><p>بواسطة: ${E(w.decidedByName || '')}</p>${note(w.decisionNote)}</div></section>`;
+    }
+
     function source() {
-      const secs = (report.sections || []).map(section).join('');
+      const secs = (report.sections || []).map(section).join('') + stamp();
       const footer = opts.footerText || cfg.footerText || '';
       return `${cover()}
         ${opts.toc ? '<div class="toc-src"></div>' : ''}
@@ -237,19 +247,22 @@
 <link rel="icon" href="/brand/logo-icon.png" type="image/png">
 <link rel="stylesheet" href="/css/tokens.css">
 <link rel="stylesheet" href="/css/report.css">
+<link rel="stylesheet" href="/css/components.css">
 </head>
-<body class="${a.cls} view" style="${a.style}">
+<body class="${a.cls} view" style="${a.style}" data-rid="${id}">
 <div class="viewbar noprint">
-  <div><strong>${escRaw(report.title || 'تقرير')}</strong><span id="pcount"></span></div>
-  <div class="vb-actions">
-    ${id ? `<a class="btn" href="/?edit=${id}">تعديل</a>` : ''}
-    <a class="btn" href="/list.html">كل التقارير</a>
+  <div class="vb-title"><strong>${escRaw(report.title || 'تقرير')}</strong><span id="pcount"></span><span id="vb-status" class="chip-status"></span></div>
+  <div class="vb-actions" id="vb-actions">
+    <a class="btn" href="/list.html">تقاريري</a>
     <button class="btn primary" onclick="window.print()">طباعة / حفظ PDF</button>
   </div>
 </div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
 <div id="src" hidden>${r.source()}</div>
 <div id="pages" class="pages"></div>
+<script src="/js/guard.js"></script>
 <script src="/js/paginate.js"></script>
+<script type="module" src="/js/viewbar.js"></script>
 </body>
 </html>`;
   }

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>إدارة النظام</title>
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="icon" href="/brand/logo-icon.png" type="image/png">
+<script>try{var t=localStorage.getItem('rb-theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<script src="/js/guard.js"></script>
+<style>
+.tbl-a { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-3); overflow: hidden; } .tbl-a th, .tbl-a td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--border); font-size: var(--fs-2); } .tbl-a th { background: var(--surface-2); color: var(--muted); } .tbl-a select { padding: 4px 8px; width: auto; }
+.card-a { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-3); padding: var(--sp-5); margin: var(--sp-5) 0; } .card-a h2 { font-size: var(--fs-5); margin-bottom: var(--sp-3); }
+.row-f { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; } .tscroll-a { overflow-x: auto; }
+.off { opacity: .55; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><img src="/brand/logo-icon.png" alt="" width="30" height="30"><div><strong>منشئ التقارير</strong></div></div>
+  <div class="top-actions"><nav class="top-links"><a href="/" class="nav-a">تقرير جديد</a><a href="/list.html" class="nav-a">التقارير</a><a href="/admin.html" class="nav-a on">إدارة النظام</a></nav><span id="user-chip"></span></div>
+</header>
+<main class="page-wrap">
+  <h1>إدارة النظام</h1>
+  <p class="muted" id="mode"></p>
+
+  <section class="card-a">
+    <h2>المستخدمون</h2>
+    <div class="tscroll-a"><table class="tbl-a"><thead><tr><th>اسم المستخدم</th><th>الاسم</th><th>المصدر</th><th>الدور</th><th>آخر دخول</th><th>إجراءات</th></tr></thead><tbody id="users"></tbody></table></div>
+  </section>
+
+  <section class="card-a">
+    <h2>إضافة مستخدم</h2>
+    <form id="add" class="row-f">
+      <div class="fld"><label for="n-u">اسم المستخدم</label><input id="n-u" type="text" required dir="ltr" style="text-align:right" autocomplete="off"></div>
+      <div class="fld"><label for="n-n">الاسم الظاهر</label><input id="n-n" type="text" autocomplete="off"></div>
+      <div class="fld"><label for="n-r">الدور</label><select id="n-r"><option value="employee">موظف</option><option value="manager">مدير (يعتمد التقارير)</option><option value="admin">مسؤول</option></select></div>
+      <div class="fld"><label for="n-s">نوع الحساب</label><select id="n-s"><option value="ad">حساب دومين</option><option value="local">حساب محلي (بكلمة مرور)</option></select></div>
+      <div class="fld" id="pw-f" hidden><label for="n-p">كلمة المرور (8 أحرف فأكثر)</label><input id="n-p" type="password" autocomplete="new-password"></div>
+      <div class="fld"><button class="btn primary" type="submit">إضافة</button></div>
+    </form>
+    <p class="tip">حسابات الدومين تُنشأ تلقائياً عند أول دخول للموظف بدور «موظف». أضفها هنا فقط لتحديد دور مدير أو مسؤول مسبقاً.</p>
+  </section>
+
+  <section class="card-a">
+    <h2>سجل النشاط</h2>
+    <div class="tscroll-a"><table class="tbl-a"><thead><tr><th>الوقت</th><th>الإجراء</th><th>المستخدم</th><th>تفاصيل</th></tr></thead><tbody id="audit"></tbody></table></div>
+  </section>
+</main>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<div id="menu-root"></div>
+<script type="module">
+import { el, btn, toast, confirmDialog, modal } from '/js/ui.js';
+import { mountUserChip } from '/js/userchip.js';
+let me;
+const ROLES = [['employee', 'موظف'], ['manager', 'مدير'], ['admin', 'مسؤول']];
+const api = async (url, method, body) => { const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); const o = await r.json().catch(() => ({})); if (!r.ok) throw new Error(o.error || 'تعذر التنفيذ'); return o; };
+const fmt = (s) => (s ? new Date(s).toLocaleString('ar-SA-u-ca-gregory', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
+
+async function loadUsers() {
+  const users = await api('/api/admin/users');
+  const tb = document.getElementById('users'); tb.replaceChildren();
+  users.forEach((u) => {
+    const role = el('select', { 'aria-label': 'الدور', disabled: u.username === me.username, onchange: async (e) => { try { await api('/api/admin/users/' + u.username, 'PATCH', { role: e.target.value }); toast('تم تحديث الدور', { tone: 'ok' }); } catch (err) { toast(err.message, { tone: 'err' }); loadUsers(); } } }, ROLES.map(([v, t]) => el('option', { value: v, selected: u.role === v }, t)));
+    tb.append(el('tr', { class: u.disabled ? 'off' : '' },
+      el('td', { dir: 'ltr', style: 'text-align:right' }, u.username), el('td', {}, u.name), el('td', {}, u.source === 'ad' ? 'دومين' : 'محلي'), el('td', {}, role), el('td', {}, fmt(u.lastLogin)),
+      el('td', { style: 'white-space:nowrap' },
+        u.source === 'local' ? btn('كلمة مرور', { cls: 'sm ghost', onclick: () => resetPw(u) }) : null, ' ',
+        u.username !== me.username ? btn(u.disabled ? 'تفعيل' : 'تعطيل', { cls: 'sm ghost', onclick: async () => { try { await api('/api/admin/users/' + u.username, 'PATCH', { disabled: !u.disabled }); loadUsers(); } catch (err) { toast(err.message, { tone: 'err' }); } } }) : null, ' ',
+        u.username !== me.username ? btn('حذف', { cls: 'sm ghost danger-text', onclick: async () => { if (await confirmDialog({ title: 'حذف المستخدم؟', text: `سيُحذف حساب «${u.name}». تقاريره تبقى محفوظة وتظهر للمسؤول.`, ok: 'حذف', danger: true })) { try { await api('/api/admin/users/' + u.username, 'DELETE'); loadUsers(); } catch (err) { toast(err.message, { tone: 'err' }); } } } }) : null)));
+  });
+}
+function resetPw(u) {
+  const pw = el('input', { type: 'password', id: 'rp', autocomplete: 'new-password' }), msg = el('p', { role: 'alert', style: 'color:var(--danger);min-height:1.2em' });
+  const m = modal('إعادة تعيين كلمة المرور — ' + u.name, el('div', {}, el('div', { class: 'fld' }, el('label', { for: 'rp' }, 'كلمة المرور الجديدة'), pw), msg, el('div', { class: 'dlg-actions' }, btn('حفظ', { cls: 'primary', onclick: async () => { try { await api('/api/admin/users/' + u.username + '/password', 'POST', { password: pw.value }); m.close(); toast('تم تعيين كلمة المرور وإنهاء جلسات المستخدم', { tone: 'ok' }); } catch (e) { msg.textContent = e.message; } } }), btn('إلغاء', { cls: 'ghost', onclick: () => m.close() }))));
+  pw.focus();
+}
+const ACT = { login: 'دخول', 'login-failed': 'فشل دخول', 'login-locked': 'إيقاف محاولات', 'login-ad-unavailable': 'الدومين غير متاح', 'report-create': 'إنشاء تقرير', 'report-update': 'تعديل تقرير', 'report-share': 'إرسال للاعتماد', 'report-approve': 'اعتماد', 'report-return': 'إعادة للتعديل', 'report-withdraw': 'سحب', 'report-reopen': 'إعادة فتح', 'report-owner': 'نقل ملكية', 'user-create': 'إضافة مستخدم', 'user-update': 'تعديل مستخدم', 'user-delete': 'حذف مستخدم', 'password-reset': 'إعادة كلمة مرور', 'password-change': 'تغيير كلمة مرور', 'bootstrap-admin': 'إنشاء مسؤول' };
+async function loadAudit() {
+  const rows = await api('/api/admin/audit?n=150'), tb = document.getElementById('audit'); tb.replaceChildren();
+  rows.forEach((r) => tb.append(el('tr', {}, el('td', {}, fmt(r.at)), el('td', {}, ACT[r.action] || r.action), el('td', { dir: 'ltr', style: 'text-align:right' }, r.by || r.user || ''), el('td', { class: 'muted' }, [r.user && r.by ? 'المستخدم: ' + r.user : '', r.id ? 'تقرير: ' + r.id : '', r.ip ? 'IP: ' + r.ip : '', r.to ? 'إلى: ' + r.to : ''].filter(Boolean).join(' · ')))));
+}
+document.getElementById('n-s').onchange = (e) => { document.getElementById('pw-f').hidden = e.target.value !== 'local'; };
+document.getElementById('add').onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    await api('/api/admin/users', 'POST', { username: document.getElementById('n-u').value, name: document.getElementById('n-n').value, role: document.getElementById('n-r').value, source: document.getElementById('n-s').value, password: document.getElementById('n-p').value });
+    e.target.reset(); document.getElementById('pw-f').hidden = true; toast('تمت الإضافة', { tone: 'ok' }); loadUsers(); loadAudit();
+  } catch (err) { toast(err.message, { tone: 'err' }); }
+};
+(async () => {
+  me = await (await fetch('/api/me')).json(); mountUserChip(document.getElementById('user-chip'), me);
+  const info = await (await fetch('/api/auth-info')).json();
+  document.getElementById('mode').textContent = info.mode === 'ad' ? 'طريقة الدخول: حسابات الدومين' + (info.domain ? ' (' + info.domain + ')' : '') + ' + حسابات محلية احتياطية.' : 'طريقة الدخول: حسابات محلية فقط.';
+  loadUsers(); loadAudit();
+})();
+</script>
+</body>
+</html>

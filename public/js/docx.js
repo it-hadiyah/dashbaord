@@ -189,7 +189,7 @@ async function imageXml(ctx, c) {
 }
 
 /* ---------- بناء المستند ---------- */
-export async function exportDocx(report, config, fileName) {
+export async function exportDocx(report, config, fileName, workflow) {
   const ctx = makeCtx(report), o = report.options || {}, tpl = T.byId(report.template);
   const body = [];
   const h1 = (t) => para(run(ctx, t, { size: 15, b: true, color: ctx.d }), { style: 'Heading1', keep: true, before: 200, after: 100, line: 300 });
@@ -223,6 +223,10 @@ export async function exportDocx(report, config, fileName) {
       case 'callout': body.push(calloutXml(ctx, c)); break;
       default: break;
     }
+  }
+
+  if (workflow && workflow.status === 'approved') {
+    body.push(table([tr([cell(para(run(ctx, '✓ تم اعتماد التقرير', { size: 13, b: true, color: '0D4A37' }), { after: 40 }) + para(run(ctx, `اعتمده: ${workflow.decidedByName || ''} — بتاريخ ${String(workflow.decidedAt || '').slice(0, 10)}`, { size: 10.5 }), { after: 0 }) + (workflow.decisionNote ? para(run(ctx, workflow.decisionNote, { size: 10, color: '4A5968' }), { after: 0 }) : ''), CONTENT_W, { fill: 'E6F4EE', borders: '<w:tcBorders><w:right w:val="single" w:sz="36" w:space="0" w:color="1F7A5C"/></w:tcBorders>' })])], [CONTENT_W], { noBorders: true }));
   }
 
   const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';

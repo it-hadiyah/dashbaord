@@ -14,5 +14,16 @@
     "email": "",
     "website": "",
     "address": ""
+  },
+  "auth": {
+    "mode": "ad",
+    "domain": "",
+    "admins": [],
+    "managers": [],
+    "adminGroups": [],
+    "managerGroups": [],
+    "sessionHours": 8,
+    "secureCookie": false,
+    "trustProxy": false
   }
 }

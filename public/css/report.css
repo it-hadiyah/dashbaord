@@ -107,3 +107,11 @@ body.thumb { overflow: hidden; background: #fff; } body.thumb .pages { padding: 
 .cv-split .cv-icon { bottom: auto; top: 24mm; left: 14mm; width: 60mm; }
 .cv-side .cv-icon { left: 14mm; }
 .img img[src^='/brand/icons'] { max-width: 60mm; }
+
+/* ختم الاعتماد */
+.stamp { display: flex; gap: 14px; align-items: center; border-radius: 12px; padding: 14px 18px; margin-top: 8mm; border: 2px solid; break-inside: avoid; }
+.stamp b { font-size: 17px; } .stamp p { margin: 2px 0 0; font-size: 13px; } .stamp .stn { color: #4a5968; }
+.stamp.ok { border-color: #1f7a5c; background: #e6f4ee; color: #0d4a37; } .stamp .seal { width: 46px; height: 46px; border-radius: 50%; background: #1f7a5c; color: #fff; display: grid; place-items: center; font-size: 26px; font-weight: 700; flex: none; }
+.stamp.wait { border-color: #c98a00; background: #fdf3dc; color: #6b4a0c; } .stamp.ret { border-color: #b3382a; background: #fbeceb; color: #7a241a; }
+.ribbon.ok { background: #1f7a5c; color: #fff; }
+.vb-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

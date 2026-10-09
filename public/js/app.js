@@ -8,13 +8,15 @@ import { sectionEditor, metaEditor, segmented, field, textInput } from './editor
 import * as P from './preview.js';
 import { buildGallery } from './gallery.js';
 import { iconButton } from './iconpicker.js';
+import { mountUserChip } from './userchip.js';
+import { shareDialog, STATUS } from './workflow-ui.js';
 
 let navTab = 'sections';
 let secFilter = '';
 
 /* ---------- تهيئة الأيقونات الثابتة ---------- */
 const setIcon = (id, name, label, size = 18) => { const e = $(id); e.innerHTML = icon(name, size) + (label ? `<span>${label}</span>` : ''); };
-setIcon('#b-undo', 'undo'); setIcon('#b-redo', 'redo'); setIcon('#b-export', 'download', 'تصدير', 16); setIcon('#b-save', 'save', 'حفظ', 16);
+setIcon('#b-share', 'link', 'إرسال للاعتماد', 16); setIcon('#b-undo', 'undo'); setIcon('#b-redo', 'redo'); setIcon('#b-export', 'download', 'تصدير', 16); setIcon('#b-save', 'save', 'حفظ', 16);
 setIcon('#b-help', 'keyboard'); setIcon('#v-prev', 'up'); setIcon('#v-next', 'down'); setIcon('#v-zo', 'zoomout'); setIcon('#v-zi', 'zoomin'); setIcon('#v-focus', 'panel');
 $('#nav-tabs [data-tab=sections]').innerHTML = icon('list', 15) + '<span>الأقسام</span>';
 $('#nav-tabs [data-tab=library]').innerHTML = icon('plus', 15) + '<span>العناصر</span>';
@@ -36,6 +38,7 @@ const docTitle = () => (store.report && store.report.title ? store.report.title 
 
 function enterEditor(report, o = {}) {
   S.load(report, o);
+  renderWf();
   showView('editor');
   $('#panes').dataset.m = 'edit'; $$('.tabs-m button').forEach((b) => b.classList.toggle('on', b.dataset.pane === 'edit'));
   renderAll();
@@ -141,8 +144,13 @@ function designPanel() {
 function renderEditor(invalid) {
   const body = $('#editor-body');
   body.replaceChildren();
+  const rb = returnedBanner(); if (rb) body.append(rb);
   if (store.sel.kind === 'section') { const s = S.current(); if (s) { body.append(sectionEditor(s), editorFooter(s)); return; } }
   body.append(metaEditor(invalid));
+}
+function returnedBanner() {
+  const w = store.workflow;
+  return w && w.status === 'returned' ? el('div', { class: 'hint', role: 'alert', style: 'margin-bottom:12px;border-inline-start-color:var(--danger)' }, el('span', {}, `أعاد ${w.decidedByName || 'المدير'} التقرير للتعديل: ${w.decisionNote || ''}`)) : null;
 }
 function editorFooter(s) {
   const i = store.report.sections.findIndex((x) => x.id === s.id), secs = store.report.sections;
@@ -161,6 +169,11 @@ function renderStatus() {
   const c = S.completion(); $('#pbar').style.width = c + '%'; $('#ptxt').textContent = c + '%';
   document.title = docTitle();
 }
+function renderWf() {
+  const w = store.workflow || { status: 'draft' }, chip = $('#wf-chip');
+  chip.textContent = store.serverId ? STATUS[w.status] || '' : ''; chip.className = 'chip-status ' + (w.status || 'draft');
+  $('#b-share').hidden = !!(store.access && !store.access.share);
+}
 function renderAll() { renderNav(); renderEditor(); renderStatus(); P.push(); }
 
 const rerenderNav = debounce(() => { const a = document.activeElement; if (a && a.closest && a.closest('#nav-body')) return; renderNav(); }, 250);
@@ -178,11 +191,16 @@ on((kind) => {
 /* ---------- أزرار الشريط ---------- */
 $('#b-undo').onclick = () => S.undo(); $('#b-redo').onclick = () => S.redo();
 $('#b-save').onclick = doSave;
+$('#b-share').onclick = async () => {
+  if (!String(store.report.title || '').trim()) { select('meta'); renderEditor(true); toast('أدخل عنوان التقرير أولاً', { tone: 'err' }); return; }
+  if (store.dirty || !store.serverId) { try { const out = await S.save(); history.replaceState(null, '', '/?edit=' + out.id); } catch (e) { toast(e.message || 'تعذر الحفظ', { tone: 'err' }); return; } }
+  if (await shareDialog(store.serverId)) { S.clearDraft(store.serverId); store.dirty = false; location.href = '/reports/' + store.serverId + '.html'; }
+};
 async function doSave() {
   const b = $('#b-save'); b.disabled = true;
   try {
     const out = await S.save();
-    history.replaceState(null, '', '/?edit=' + out.id);
+    history.replaceState(null, '', '/?edit=' + out.id); renderWf();
     toast('تم حفظ التقرير', { tone: 'ok', action: { label: 'فتح', run: () => window.open(out.url, '_blank') } });
   } catch (e) {
     if (e.code === 'title') { select('meta'); renderEditor(true); const i = $('#editor-body input'); if (i) i.focus(); }
@@ -198,7 +216,7 @@ $('#b-export').onclick = (e) => {
   const item = (ic, label, sub, fn) => el('button', { type: 'button', role: 'menuitem', onclick: () => { root.replaceChildren(); fn(); } }, el('span', { html: icon(ic, 18) }), el('span', {}, label, sub ? el('small', {}, sub) : null));
   const menu = el('div', { class: 'menu', role: 'menu', style: `top:${r.bottom + 6}px;inset-inline-start:${document.dir === 'rtl' ? 'auto' : r.left + 'px'};left:${r.left}px` },
     item('print', 'طباعة / حفظ PDF', 'بجودة عالية وبصيغة A4، وتُحفظ الألوان والخطوط', () => { const t = document.title; document.title = fileBase(); P.printPreview(); setTimeout(() => { document.title = t; }, 1500); }),
-    item('file', 'تنزيل ملف Word ‏(DOCX)', 'ملف قابل للتحرير: عناوين وجداول وصور للرسوم', async () => { try { const m = await import('./docx.js'); await m.exportDocx(store.report, P.config, fileBase()); toast('تم تجهيز ملف Word', { tone: 'ok' }); } catch (err) { toast('تعذر إنشاء ملف Word: ' + err.message, { tone: 'err' }); } }),
+    item('file', 'تنزيل ملف Word ‏(DOCX)', 'ملف قابل للتحرير: عناوين وجداول وصور للرسوم', async () => { try { const m = await import('./docx.js'); await m.exportDocx(store.report, P.config, fileBase(), store.workflow); toast('تم تجهيز ملف Word', { tone: 'ok' }); } catch (err) { toast('تعذر إنشاء ملف Word: ' + err.message, { tone: 'err' }); } }),
     el('hr'),
     item('download', 'نسخة البيانات (JSON)', 'للنسخ الاحتياطي، والمحتوى منفصل عن الشكل', () => { const a = el('a', { href: URL.createObjectURL(new Blob([JSON.stringify(store.report, null, 2)], { type: 'application/json' })), download: fileBase() + '.json' }); document.body.append(a); a.click(); a.remove(); }),
     store.serverId ? item('link', 'فتح الصفحة النهائية', 'الصفحة المحفوظة على الخادم', () => window.open('/reports/' + store.serverId + '.html', '_blank')) : null);
@@ -239,6 +257,11 @@ window.addEventListener('beforeunload', (e) => { if (store.report && store.dirty
 
 /* ---------- البدء ---------- */
 (async function boot() {
+  const meRes = await fetch('/api/me'); if (!meRes.ok) return;
+  const me = await meRes.json(); store.user = me.username;
+  mountUserChip($('#user-chip'), me);
+  if (me.role === 'admin') $('#admin-link').hidden = false;
+  if (me.inbox) { const l = $('#lnk-list'); l.textContent = `التقارير (${me.inbox})`; l.title = 'لديك تقارير بانتظار الاعتماد'; l.href = '/list.html?scope=inbox'; }
   await P.loadConfig();
   $('#orgname').textContent = P.config.orgName || '';
   buildGallery($('#gallery-root'), startFromTemplate);
@@ -249,11 +272,12 @@ window.addEventListener('beforeunload', (e) => { if (store.report && store.dirty
     try {
       const res = await fetch('/api/reports/' + encodeURIComponent(id)); if (!res.ok) throw new Error('التقرير غير موجود');
       const r = await res.json();
+      if (!r.access || !r.access.edit) { location.replace('/reports/' + encodeURIComponent(id) + '.html'); return; }
       let report = T.migrate(r); report.id = id;
       const d = S.readDraft(id);
       let dirty = false;
       if (d && d.report && d.at > Date.parse(r.updatedAt || 0) && await confirmDialog({ title: 'استعادة المسودة؟', text: 'وجدنا تعديلات غير محفوظة أحدث من النسخة المحفوظة على الخادم.', ok: 'استعادة المسودة', cancel: 'استخدام المحفوظ' })) { report = d.report; dirty = true; }
-      enterEditor(report, { serverId: id, dirty, savedAt: Date.parse(r.updatedAt || 0) || null });
+      enterEditor(report, { serverId: id, dirty, workflow: r.workflow, access: r.access, savedAt: Date.parse(r.updatedAt || 0) || null });
     } catch (e) { showView('gallery'); toast(e.message || 'تعذر فتح التقرير', { tone: 'err' }); history.replaceState(null, '', '/'); }
   } else showView('gallery');
 })();

@@ -3,57 +3,94 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>التقارير المحفوظة</title>
+<title>التقارير</title>
 <link rel="stylesheet" href="/css/tokens.css">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="icon" href="/brand/logo-icon.png" type="image/png">
 <script>try{var t=localStorage.getItem('rb-theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<script src="/js/guard.js"></script>
 </head>
 <body>
 <header class="top">
   <div class="brand"><img src="/brand/logo-icon.png" alt="" width="30" height="30"><div><strong>منشئ التقارير</strong></div></div>
-  <div class="top-actions"><nav class="top-links"><a href="/" class="nav-a">تقرير جديد</a><a href="/list.html" class="nav-a on">التقارير المحفوظة</a></nav></div>
+  <div class="top-actions"><nav class="top-links"><a href="/" class="nav-a">تقرير جديد</a><a href="/list.html" class="nav-a on">التقارير</a><a href="/admin.html" class="nav-a" id="admin-link" hidden>إدارة النظام</a></nav><span id="user-chip"></span></div>
 </header>
 <main class="page-wrap">
-  <h1>التقارير المحفوظة</h1>
-  <div class="search"><span id="si"></span><input id="q" type="search" placeholder="ابحث بالعنوان أو الموظف أو الإدارة..." aria-label="بحث في التقارير"></div>
+  <h1>التقارير</h1>
+  <div class="chips" id="tabs" role="tablist" aria-label="نطاق التقارير"></div>
+  <div class="search" style="margin-top:12px"><span id="si"></span><input id="q" type="search" placeholder="ابحث بالعنوان أو الموظف أو الإدارة..." aria-label="بحث في التقارير"></div>
   <div id="list" class="rlist" aria-live="polite"><div class="skel" style="height:72px;border-radius:14px;position:relative"></div><div class="skel" style="height:72px;border-radius:14px;position:relative"></div></div>
-  <div id="empty" class="empty" hidden><b>لا توجد تقارير بعد</b><small>ابدأ بإنشاء تقريرك الأول من أحد القوالب.</small><a class="btn primary" href="/">إنشاء تقرير</a></div>
+  <div id="empty" class="empty" hidden><b id="empty-t">لا توجد تقارير</b><small id="empty-s"></small><a class="btn primary" href="/" id="empty-a">إنشاء تقرير</a></div>
 </main>
 <div id="toasts" class="toasts" aria-live="polite"></div>
 <script type="module">
 import { icon } from '/js/icons.js';
-import { el, btn, toast, confirmDialog } from '/js/ui.js';
+import { el, btn, toast, modal } from '/js/ui.js';
+import { call } from '/js/workflow-ui.js';
+import { mountUserChip } from '/js/userchip.js';
+
 document.getElementById('si').innerHTML = icon('search', 16);
 const list = document.getElementById('list'), empty = document.getElementById('empty');
-let all = [];
-const fmt = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' }); };
+let all = [], me, scope = 'mine', users = [];
+const fmt = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('ar-SA-u-ca-gregory', { year: 'numeric', month: 'short', day: 'numeric' }); };
+
 function draw() {
   const q = document.getElementById('q').value.trim();
-  const rows = all.filter((r) => !q || [r.title, r.employee, r.department, r.templateName].join(' ').includes(q));
+  const rows = all.filter((r) => !q || [r.title, r.employee, r.department, r.templateName, r.ownerName].join(' ').includes(q));
   list.replaceChildren();
-  empty.hidden = all.length > 0;
+  const e = document.getElementById('empty');
+  e.hidden = all.length > 0;
+  document.getElementById('empty-t').textContent = scope === 'inbox' ? 'لا توجد تقارير بانتظار اعتمادك' : 'لا توجد تقارير';
+  document.getElementById('empty-s').textContent = scope === 'inbox' ? 'عندما يرسل لك موظف تقريراً للاعتماد سيظهر هنا.' : scope === 'all' ? '' : 'ابدأ بإنشاء تقريرك الأول من أحد القوالب.';
+  document.getElementById('empty-a').hidden = scope !== 'mine';
   if (all.length && !rows.length) list.append(el('div', { class: 'empty' }, el('b', {}, 'لا نتائج مطابقة')));
   rows.forEach((r) => list.append(el('div', { class: 'ritem' },
     el('div', { class: 'rt' }, el('a', { class: 'ttl', href: '/reports/' + r.id + '.html' }, r.title || 'بدون عنوان'),
-      el('div', { class: 'rm' }, el('span', {}, r.templateName || 'تقرير'), r.employee ? el('span', {}, r.employee) : null, r.department ? el('span', {}, r.department) : null, el('span', {}, 'آخر تعديل: ' + fmt(r.updatedAt || r.createdAt)))),
+      el('div', { class: 'rm' }, el('span', { class: 'chip-status ' + r.status }, r.statusLabel), scope !== 'mine' || r.owner !== me.username ? el('span', {}, 'صاحب التقرير: ' + (r.ownerName || r.owner || 'بدون مالك')) : null, r.sharedWithName && r.status !== 'draft' ? el('span', {}, 'عند: ' + r.sharedWithName) : null, el('span', {}, r.templateName || 'تقرير'), el('span', {}, 'آخر تعديل: ' + fmt(r.updatedAt || r.createdAt)))),
     el('div', { class: 'ra' },
-      el('a', { class: 'btn sm', href: '/?edit=' + r.id }, 'تعديل'),
-      btn('نسخة', { cls: 'sm ghost', onclick: () => dup(r.id) }),
-      el('a', { class: 'btn sm ghost', href: '/reports/' + r.id + '.html', target: '_blank', rel: 'noopener' }, 'فتح')))));
+      r.canEdit ? el('a', { class: 'btn sm', href: '/?edit=' + r.id }, 'تعديل') : null,
+      scope === 'inbox' ? el('a', { class: 'btn sm primary', href: '/reports/' + r.id + '.html' }, 'مراجعة') : null,
+      scope === 'mine' || me.role === 'admin' ? btn('نسخة', { cls: 'sm ghost', onclick: () => dup(r.id) }) : null,
+      scope !== 'inbox' ? el('a', { class: 'btn sm ghost', href: '/reports/' + r.id + '.html', target: '_blank', rel: 'noopener' }, 'فتح') : null,
+      me.role === 'admin' ? btn('نقل', { cls: 'sm ghost', title: 'نقل ملكية التقرير لموظف آخر', onclick: () => reassign(r) }) : null))));
 }
+
 async function dup(id) {
   try {
     const d = await (await fetch('/api/reports/' + id)).json();
     delete d.id; d.title = (d.title || '') + ' (نسخة)';
     const res = await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
-    if (!res.ok) throw new Error('تعذر النسخ');
-    toast('تم إنشاء نسخة من التقرير', { tone: 'ok' }); load();
+    if (!res.ok) throw new Error((await res.json()).error || 'تعذر النسخ');
+    toast('تم إنشاء نسخة (مسودة) باسمك', { tone: 'ok' }); if (scope === 'mine') load();
   } catch (e) { toast(e.message, { tone: 'err' }); }
 }
-async function load() { try { all = await (await fetch('/api/reports')).json(); } catch (e) { all = []; } draw(); }
+
+async function reassign(r) {
+  if (!users.length) users = await (await fetch('/api/admin/users')).json();
+  const sel = el('select', { 'aria-label': 'المالك الجديد' }, users.filter((u) => !u.disabled).map((u) => el('option', { value: u.username, selected: u.username === r.owner }, u.name + ' (' + u.username + ')')));
+  const m = modal('نقل ملكية التقرير', el('div', {}, el('p', { class: 'muted' }, r.title), sel, el('div', { class: 'dlg-actions' }, btn('نقل', { cls: 'primary', onclick: async () => { try { await call(r.id, 'owner', { username: sel.value }); m.close(); toast('تم النقل', { tone: 'ok' }); load(); } catch (e) { toast(e.message, { tone: 'err' }); } } }), btn('إلغاء', { cls: 'ghost', onclick: () => m.close() }))));
+}
+
+async function load() {
+  list.replaceChildren(el('div', { class: 'skel', style: 'height:72px;border-radius:14px;position:relative' }));
+  try { const res = await fetch('/api/reports?scope=' + scope); all = res.ok ? await res.json() : []; } catch (e) { all = []; }
+  draw();
+}
+
+(async () => {
+  me = await (await fetch('/api/me')).json();
+  mountUserChip(document.getElementById('user-chip'), me);
+  if (me.role === 'admin') document.getElementById('admin-link').hidden = false;
+  const tabs = [['mine', 'تقاريري']];
+  if (me.role !== 'employee') tabs.push(['inbox', 'بانتظار اعتمادي' + (me.inbox ? ` (${me.inbox})` : '')]);
+  if (me.role === 'admin') tabs.push(['all', 'كل التقارير']);
+  const box = document.getElementById('tabs');
+  const initial = new URLSearchParams(location.search).get('scope');
+  if (initial && tabs.some((t) => t[0] === initial)) scope = initial;
+  const paint = () => box.replaceChildren(...tabs.map(([k, n]) => el('button', { type: 'button', role: 'tab', class: 'chip' + (k === scope ? ' on' : ''), 'aria-selected': String(k === scope), onclick: () => { scope = k; paint(); load(); } }, n)));
+  paint(); load();
+})();
 document.getElementById('q').oninput = draw;
-load();
 </script>
 </body>
 </html>

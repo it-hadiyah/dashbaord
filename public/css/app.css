@@ -145,3 +145,8 @@ input[type='range'] { width: 100%; accent-color: var(--brand); } input[type='che
 .icon-tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid var(--border); } .icon-tab { font: inherit; border: 0; background: transparent; color: var(--muted); padding: 8px 14px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; } .icon-tab small { color: var(--muted); margin-inline-start: 4px; } .icon-tab.on { color: var(--brand); border-color: var(--brand); font-weight: 600; } .icon-tab:hover { color: var(--text); }
 .icon-h { grid-column: 1 / -1; margin: 10px 0 0; font-size: var(--fs-2); color: var(--muted); font-weight: 600; } .icon-h:first-child { margin-top: 0; }
 .dlg.wide { max-width: 640px; }
+
+.chip-status { display: inline-block; padding: 2px 12px; border-radius: 99px; font-size: var(--fs-1); font-weight: 600; background: var(--surface-3); color: var(--text-2); } .chip-status:empty { display: none; }
+.chip-status.draft { background: var(--surface-3); color: var(--text-2); } .chip-status.submitted { background: var(--warn-soft); color: var(--warn); } .chip-status.approved { background: var(--brand-soft); color: var(--brand-d); } .chip-status.returned { background: var(--danger-soft); color: var(--danger); }
+
+.fld[hidden] { display: none; }

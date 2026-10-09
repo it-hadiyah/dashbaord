@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تسجيل الدخول</title>
+<link rel="icon" href="/brand/logo-icon.png" type="image/png">
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/components.css">
+<script>try{var t=localStorage.getItem('rb-theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<style>
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text); font-family: var(--font); font-size: var(--fs-3); }
+.card { width: min(420px, calc(100% - 32px)); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-4); box-shadow: var(--shadow-3); padding: 36px 32px 28px; }
+.logo { display: block; height: 64px; margin: 0 auto 18px; width: auto; }
+h1 { font-size: var(--fs-6); text-align: center; margin: 0 0 4px; } .sub { text-align: center; color: var(--muted); margin: 0 0 22px; }
+.err { background: var(--danger-soft); color: var(--danger); border-radius: var(--r-2); padding: 10px 12px; margin-bottom: 14px; } .err[hidden] { display: none; }
+.btn.primary { width: 100%; justify-content: center; padding: 11px; font-size: var(--fs-4); } .hint { color: var(--muted); font-size: var(--fs-1); text-align: center; margin: 14px 0 0; }
+.pw { position: relative; } .pw button { position: absolute; inset-inline-start: 6px; top: 50%; transform: translateY(-50%); }
+</style>
+</head>
+<body>
+<main class="card">
+  <img class="logo" src="/brand/logo-horizontal.png" alt="هدية">
+  <h1>منشئ التقارير</h1>
+  <p class="sub" id="sub">سجّل الدخول للمتابعة</p>
+  <div id="err" class="err" role="alert" hidden></div>
+  <form id="f" autocomplete="on">
+    <div class="fld"><label for="u">اسم المستخدم</label><input id="u" name="username" type="text" autocomplete="username" autocapitalize="off" spellcheck="false" required dir="ltr" style="text-align:right"></div>
+    <div class="fld"><label for="p">كلمة المرور</label><div class="pw"><input id="p" name="password" type="password" autocomplete="current-password" required dir="ltr" style="text-align:right"><button type="button" class="btn ghost sm" id="show" aria-label="إظهار كلمة المرور">إظهار</button></div></div>
+    <button class="btn primary" id="go" type="submit">دخول</button>
+  </form>
+  <p class="hint" id="hint"></p>
+</main>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search), next = q.get('next') || '/';
+  if (next.charAt(0) !== '/' || next.charAt(1) === '/' || next.indexOf('\\') >= 0) next = '/';
+  var err = document.getElementById('err'), f = document.getElementById('f'), go = document.getElementById('go');
+  fetch('/api/auth-info').then(function (r) { return r.json(); }).then(function (i) {
+    document.getElementById('hint').textContent = i.mode === 'ad' ? 'استخدم نفس اسم المستخدم وكلمة المرور الخاصة بحسابك في الدومين' + (i.domain ? ' (' + i.domain + ')' : '') + '.' : 'استخدم الحساب الذي زوّدك به مسؤول النظام.';
+  });
+  fetch('/api/me').then(function (r) { if (r.ok) location.replace(next); });
+  document.getElementById('show').onclick = function () { var p = document.getElementById('p'); p.type = p.type === 'password' ? 'text' : 'password'; this.textContent = p.type === 'password' ? 'إظهار' : 'إخفاء'; };
+  f.onsubmit = function (e) {
+    e.preventDefault(); err.hidden = true; go.disabled = true; go.textContent = 'جاري التحقق...';
+    fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: document.getElementById('u').value, password: document.getElementById('p').value }) })
+      .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); })
+      .then(function (r) { if (r.ok) { location.replace(next); } else { err.textContent = r.b.error || 'تعذر تسجيل الدخول'; err.hidden = false; go.disabled = false; go.textContent = 'دخول'; document.getElementById('p').value = ''; document.getElementById('p').focus(); } })
+      .catch(function () { err.textContent = 'تعذر الاتصال بالخادم'; err.hidden = false; go.disabled = false; go.textContent = 'دخول'; });
+  };
+})();
+</script>
+</body>
+</html>

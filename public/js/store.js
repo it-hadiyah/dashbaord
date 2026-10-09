@@ -8,6 +8,8 @@ let past = [], future = [], lastKey = '', lastAt = 0;
 export const store = {
   report: null,
   sel: { kind: 'meta', id: null },
+  user: '',             // المستخدم الحالي (تُفصل المسودات بين المستخدمين)
+  workflow: { status: 'draft' }, access: null,
   serverId: null,       // معرّف التقرير المحفوظ على الخادم
   dirty: false,         // تغييرات لم تُحفظ على الخادم
   savedAt: null,
@@ -21,6 +23,7 @@ const snap = () => JSON.stringify(store.report);
 export function load(report, o = {}) {
   store.report = report;
   store.serverId = o.serverId || null;
+  store.workflow = o.workflow || { status: 'draft' }; store.access = o.access || null;
   store.dirty = !!o.dirty;
   store.savedAt = o.savedAt || null;
   store.sel = { kind: 'meta', id: null };
@@ -102,7 +105,8 @@ export function applyTemplate(id) {
 }
 
 /* ---------- المسودة (localStorage) والحفظ ---------- */
-const draftKey = () => 'rb-draft:' + (store.serverId || 'new');
+const dk = (id) => 'rb-draft:' + (store.user || '') + ':' + (id || 'new');
+const draftKey = () => dk(store.serverId);
 let draftTimer;
 function scheduleDraft() {
   clearTimeout(draftTimer);
@@ -110,8 +114,8 @@ function scheduleDraft() {
     try { localStorage.setItem(draftKey(), JSON.stringify({ at: Date.now(), report: store.report })); store.draftAt = Date.now(); emit('status'); } catch (e) { /* التخزين غير متاح */ }
   }, 700);
 }
-export function readDraft(id) { try { return JSON.parse(localStorage.getItem('rb-draft:' + (id || 'new'))); } catch (e) { return null; } }
-export function clearDraft(id) { try { localStorage.removeItem('rb-draft:' + (id || 'new')); } catch (e) { /* ignore */ } }
+export function readDraft(id) { try { return JSON.parse(localStorage.getItem(dk(id))); } catch (e) { return null; } }
+export function clearDraft(id) { try { localStorage.removeItem(dk(id)); } catch (e) { /* ignore */ } }
 
 export async function save() {
   const r = store.report;
@@ -121,7 +125,7 @@ export async function save() {
   const out = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(out.error || 'تعذر الحفظ');
   if (wasNew) clearDraft(null);
-  store.serverId = out.id; store.report.id = out.id; store.dirty = false; store.savedAt = Date.now();
+  store.serverId = out.id; store.report.id = out.id; store.dirty = false; store.savedAt = Date.now(); if (!store.access) store.access = { edit: true, share: true };
   clearDraft(out.id);
   emit('status');
   return out;
