@@ -3,33 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>إنشاء تقرير مشروع</title>
+<title>إنشاء تقرير</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <main class="form-page">
-  <h1>إنشاء تقرير مشروع</h1>
+  <nav><a href="/list.html">كل التقارير</a></nav>
+  <h1>إنشاء تقرير</h1>
+
+  <label class="tpl">نوع التقرير (يعبّي الأقسام تلقائياً وتقدر تعدّلها)
+    <select id="tpl"></select>
+  </label>
+
   <form id="f">
-    <label>اسم المشروع *<input name="projectName" required></label>
+    <label>عنوان التقرير *<input name="title" required></label>
     <label>اسم الموظف *<input name="employee" required></label>
-    <label>القسم<input name="department"></label>
-    <label>مدير المشروع<input name="manager"></label>
-    <label>تاريخ البداية<input type="date" name="startDate"></label>
-    <label>تاريخ النهاية<input type="date" name="endDate"></label>
-    <label>الحالة
-      <select name="status"><option>قيد التنفيذ</option><option>مكتمل</option><option>متأخر</option><option>متوقف</option></select>
-    </label>
-    <label>الميزانية<input name="budget"></label>
-    <label class="wide">ملخص المشروع *<textarea name="summary" rows="4" required></textarea></label>
+    <label>القسم / الإدارة<input name="department"></label>
+    <label>التاريخ<input type="date" name="date"></label>
 
-    <fieldset class="wide">
-      <legend>المهام</legend>
-      <div id="tasks"></div>
-      <button type="button" id="add">+ إضافة مهمة</button>
-    </fieldset>
+    <div class="wide" id="sections"></div>
 
-    <label class="wide">المخاطر والعوائق<textarea name="risks" rows="3"></textarea></label>
-    <label class="wide">ملاحظات<textarea name="notes" rows="3"></textarea></label>
+    <div class="wide adders">
+      <span>إضافة قسم:</span>
+      <button type="button" data-add="text">نص</button>
+      <button type="button" data-add="list">قائمة نقاط</button>
+      <button type="button" data-add="table">جدول</button>
+      <button type="button" data-add="kpi">أرقام ومؤشرات</button>
+    </div>
+
     <button class="wide primary" type="submit">إرسال وإنشاء التقرير</button>
     <p id="msg" class="wide"></p>
   </form>

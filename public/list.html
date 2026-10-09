@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>كل التقارير</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="form-page">
+  <nav><a href="/">+ تقرير جديد</a></nav>
+  <h1>كل التقارير</h1>
+  <input id="q" placeholder="ابحث بالعنوان أو الموظف أو القسم..." class="search">
+  <table id="t"><thead><tr><th>العنوان</th><th>النوع</th><th>الموظف</th><th>القسم</th><th>التاريخ</th></tr></thead><tbody></tbody></table>
+  <p id="empty" hidden>لا توجد تقارير.</p>
+</main>
+<script>
+const body = document.querySelector('#t tbody');
+const empty = document.getElementById('empty');
+let all = [];
+const cell = (v) => { const td = document.createElement('td'); td.textContent = v || ''; return td; };
+function draw() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  body.replaceChildren();
+  const rows = all.filter((r) => [r.title, r.employee, r.department, r.type].join(' ').toLowerCase().includes(q));
+  empty.hidden = rows.length > 0;
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    const a = document.createElement('a');
+    a.href = '/reports/' + r.id + '.html';
+    a.textContent = r.title;
+    td.appendChild(a);
+    tr.append(td, cell(r.type), cell(r.employee), cell(r.department), cell(r.date));
+    body.appendChild(tr);
+  }
+}
+document.getElementById('q').oninput = draw;
+fetch('/api/reports').then((r) => r.json()).then((d) => { all = d; draw(); });
+</script>
+</body>
+</html>
