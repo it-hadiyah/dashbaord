@@ -172,23 +172,30 @@
       return `<section class="blk b-${s.type} w-${w}" data-sid="${escRaw(s.id)}" data-title="${escRaw(s.title)}">${title}${body(s)}</section>`;
     }
 
-    function logoHtml(cls) { return cfg.logo ? `<img class="${cls}" src="${escRaw(cfg.logo)}" alt="">` : ''; }
+    function logoHtml(cls, o) {
+      o = o || {};
+      const src = o.vertical ? (o.light ? cfg.logoVerticalLight : cfg.logoVertical) : (o.light ? cfg.logoLight : cfg.logo);
+      const use = src || cfg.logo;
+      return use ? `<img class="${cls}" src="${escRaw(use)}" alt="${E(cfg.orgName)}">` : '';
+    }
+    const patternHtml = (cls, light) => { const p = light ? cfg.patternLight : cfg.pattern; return p ? `<img class="${cls}" src="${escRaw(p)}" alt="">` : ''; };
 
     function cover() {
       if (opts.cover === false) return '';
       const t = T.byId(report.template);
+      const lightCover = t.cover === 'hero' || t.cover === 'split';
       const meta = [report.employee && `<div><span>إعداد</span><b>${E(report.employee)}</b></div>`, report.department && `<div><span>الإدارة / القسم</span><b>${E(report.department)}</b></div>`, report.date && `<div><span>التاريخ</span><b><bdi>${E(report.date)}</bdi></b></div>`].filter(Boolean).join('');
       return `<div class="cover-src cv-${escRaw(t.cover)}">
-        <div class="cv-top">${logoHtml('cv-logo')}<div class="cv-org"><strong>${E(cfg.orgName)}</strong><span>${E(cfg.orgSubName)}</span></div></div>
+        <div class="cv-top">${logoHtml('cv-logo', { light: lightCover })}<div class="cv-org"><strong>${E(cfg.orgName)}</strong><span>${E(cfg.orgSubName)}</span></div></div>
         <div class="cv-main">${report.sample ? '<div class="ribbon">بيانات تجريبية</div>' : ''}<small class="cv-kind">${E(t.name)}</small><h1>${E(report.title || 'عنوان التقرير')}</h1>${report.subtitle ? `<p class="cv-sub">${E(report.subtitle)}</p>` : ''}${report.period ? `<p class="cv-period">${E(report.period)}</p>` : ''}</div>
-        <div class="cv-meta">${meta}</div></div>`;
+        <div class="cv-meta">${meta}</div>${patternHtml('cv-pattern', t.cover === 'hero')}</div>`;
     }
 
     function closing() {
       if (!opts.closing) return '';
       const c = cfg.contact || {};
       const lines = [c.phone && `هاتف: <bdi>${E(c.phone)}</bdi>`, c.email && `<bdi>${E(c.email)}</bdi>`, c.website && `<bdi>${E(c.website)}</bdi>`, c.address && E(c.address)].filter(Boolean).map((l) => `<p>${l}</p>`).join('');
-      return `<div class="closing-src">${logoHtml('cl-logo')}<h2>شكراً لكم</h2><p class="cl-org">${E(cfg.orgName)}</p>${lines}</div>`;
+      return `<div class="closing-src">${logoHtml('cl-logo', { light: true, vertical: true })}<h2>شكراً لكم</h2><p class="cl-org">${E(cfg.orgName)}</p>${lines}${patternHtml('cl-pattern', true)}</div>`;
     }
 
     function source() {
@@ -223,7 +230,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escRaw(a.title)}</title>
-<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="icon" href="/brand/logo-icon.png" type="image/png">
 <link rel="stylesheet" href="/css/tokens.css">
 <link rel="stylesheet" href="/css/report.css">
 </head>

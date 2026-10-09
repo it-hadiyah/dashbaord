@@ -8,6 +8,7 @@
   'use strict';
 
   const PALETTES = {
+    hadiyah: { a: '#007f73', d: '#005a52', s: '#e0f4f1', x: '#02a999', name: 'هدية' },
     green: { a: '#1f7a5c', d: '#145a43', s: '#e6f4ee', x: '#3cc79a', name: 'أخضر الجمعية' },
     navy: { a: '#23406e', d: '#16294a', s: '#e8eef8', x: '#5b8fd9', name: 'كحلي' },
     teal: { a: '#0f766e', d: '#0b524d', s: '#e0f2f1', x: '#2dd4bf', name: 'تركوازي' },
@@ -66,7 +67,7 @@
 
   const TEMPLATES = [
     {
-      id: 'annual', name: 'التقرير السنوي المؤسسي', category: 'إدارية', cover: 'hero', palette: 'green', head: 'bar',
+      id: 'annual', name: 'التقرير السنوي المؤسسي', category: 'إدارية', cover: 'hero', palette: 'hadiyah', head: 'bar',
       desc: 'غلاف راقٍ وإنجازات ومؤشرات ورسوم بيانية لعام كامل.', toc: true, closing: true,
       sampleTitle: 'التقرير السنوي', sampleSub: 'حصاد عام من العطاء',
       sections: [
@@ -182,7 +183,7 @@
       ],
     },
     {
-      id: 'programs', name: 'تقرير البرامج والخدمات', category: 'إدارية', cover: 'split', palette: 'green', head: 'bar',
+      id: 'programs', name: 'تقرير البرامج والخدمات', category: 'إدارية', cover: 'split', palette: 'hadiyah', head: 'bar',
       desc: 'البرامج المنفذة والمستفيدون ومستوى الجودة.', toc: false, closing: false,
       sampleTitle: 'تقرير البرامج والخدمات', sampleSub: 'الأداء والمستفيدون',
       sections: [
@@ -208,7 +209,7 @@
       ],
     },
     {
-      id: 'results', name: 'تقرير الإنجازات والنتائج', category: 'إدارية', cover: 'band', palette: 'green', head: 'pill',
+      id: 'results', name: 'تقرير الإنجازات والنتائج', category: 'إدارية', cover: 'band', palette: 'hadiyah', head: 'pill',
       desc: 'ما أُنجز من مهام ومبادرات وما تحقق من نتائج.', toc: false, closing: false,
       sampleTitle: 'تقرير الإنجازات والنتائج', sampleSub: 'ما أُنجز وما تحقق',
       sections: [
@@ -233,7 +234,7 @@
       ],
     },
     {
-      id: 'blank', name: 'تقرير فارغ', category: 'عام', cover: 'band', palette: 'green', head: 'bar',
+      id: 'blank', name: 'تقرير فارغ', category: 'عام', cover: 'band', palette: 'hadiyah', head: 'bar',
       desc: 'ابدأ من الصفر وأضف الأقسام التي تحتاجها.', toc: false, closing: false,
       sampleTitle: 'عنوان التقرير', sampleSub: '',
       sections: [sec('text', 'المقدمة', 'اكتب مقدمة قصيرة عن موضوع التقرير.')],

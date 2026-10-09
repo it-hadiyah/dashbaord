@@ -1,7 +1,18 @@
 {
   "orgName": "جمعية هدية الحاج والمعتمر",
   "orgSubName": "نظام التقارير المؤسسية",
-  "logo": "/logo.svg",
+  "logo": "/brand/logo-horizontal.png",
+  "logoLight": "/brand/logo-horizontal-white.png",
+  "logoVertical": "/brand/logo-vertical.png",
+  "logoVerticalLight": "/brand/logo-vertical-white.png",
+  "icon": "/brand/logo-icon.png",
+  "pattern": "/brand/pattern-teal.png",
+  "patternLight": "/brand/pattern-white.png",
   "footerText": "تقرير صادر عن النظام الداخلي للتقارير",
-  "contact": { "phone": "", "email": "", "website": "", "address": "" }
+  "contact": {
+    "phone": "",
+    "email": "",
+    "website": "",
+    "address": ""
+  }
 }
