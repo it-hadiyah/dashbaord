@@ -131,7 +131,7 @@ function resetPw(u) {
 const ACT = { login: 'دخول', 'login-failed': 'فشل دخول', 'login-locked': 'إيقاف محاولات', 'login-ad-unavailable': 'الدومين غير متاح', 'report-create': 'إنشاء تقرير', 'report-update': 'تعديل تقرير', 'report-share': 'إرسال للاعتماد', 'report-approve': 'اعتماد', 'report-return': 'إعادة للتعديل', 'report-withdraw': 'سحب', 'report-reopen': 'إعادة فتح', 'report-owner': 'نقل ملكية', 'user-create': 'إضافة مستخدم', 'user-update': 'تعديل مستخدم', 'user-delete': 'حذف مستخدم', 'password-reset': 'إعادة كلمة مرور', 'password-change': 'تغيير كلمة مرور', 'settings-update': 'تعديل الإعدادات', 'bootstrap-admin': 'إنشاء مسؤول' };
 async function loadAudit() {
   const rows = await api('/api/admin/audit?n=150'), tb = document.getElementById('audit'); tb.replaceChildren();
-  rows.forEach((r) => tb.append(el('tr', {}, el('td', {}, fmt(r.at)), el('td', {}, ACT[r.action] || r.action), el('td', { dir: 'ltr', style: 'text-align:right' }, r.by || r.user || ''), el('td', { class: 'muted' }, [r.user && r.by ? 'المستخدم: ' + r.user : '', r.id ? 'تقرير: ' + r.id : '', r.ip ? 'IP: ' + r.ip : '', r.to ? 'إلى: ' + r.to : ''].filter(Boolean).join(' · ')))));
+  rows.forEach((r) => tb.append(el('tr', {}, el('td', {}, fmt(r.at)), el('td', {}, ACT[r.action] || r.action), el('td', { dir: 'ltr', style: 'text-align:right' }, r.by || r.user || ''), el('td', { class: 'muted' }, [r.user && r.by ? 'المستخدم: ' + r.user : '', r.id ? 'تقرير: ' + r.id : '', r.ip ? 'IP: ' + r.ip : '', r.to ? 'إلى: ' + r.to : '', r.reason ? 'السبب: ' + r.reason : ''].filter(Boolean).join(' · ')))));
 }
 document.getElementById('n-s').onchange = (e) => { document.getElementById('pw-f').hidden = e.target.value !== 'local'; };
 document.getElementById('add').onsubmit = async (e) => {
