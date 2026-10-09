@@ -1,0 +1,8 @@
+{
+  "name": "project-reports",
+  "version": "1.0.0",
+  "description": "موقع بدون قاعدة بيانات لإنشاء تقارير المشاريع كصفحات HTML",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
