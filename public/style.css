@@ -13,7 +13,8 @@ legend { font-size: 12px; color: #637083; padding: 0 6px; }
 .sec-head { display: flex; gap: 6px; margin-bottom: 8px; }
 .sec-head .s-title { font-weight: 700; }
 .sec-head button { width: auto; }
-.kpi-row { display: grid; grid-template-columns: 2fr 1fr 36px; gap: 8px; margin-bottom: 6px; }
+.sec-head .s-width { width: 130px; }
+.kpi-row { display: grid; grid-template-columns: 2fr 1fr 1.3fr 36px; gap: 8px; margin-bottom: 6px; }
 .adders { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 button { font: inherit; padding: 8px 14px; border: 0; border-radius: 6px; background: #e3e8ef; cursor: pointer; }
 button.primary { background: #1d6fd8; color: #fff; font-weight: 700; padding: 12px; }

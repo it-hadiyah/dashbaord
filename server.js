@@ -12,75 +12,33 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const REPORTS_DIR = path.join(__dirname, 'reports');
 const MAX_BODY = 2 * 1024 * 1024;
 
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' };
 
-const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const multiline = (v) => esc(v).replace(/\r?\n/g, '<br>');
-
-function renderSection(s) {
-  const title = s.title ? `<h2>${esc(s.title)}</h2>` : '';
-  switch (s.type) {
-    case 'text':
-      return `<section>${title}<p>${multiline(s.content)}</p></section>`;
-    case 'list': {
-      const items = (Array.isArray(s.content) ? s.content : []).filter(Boolean);
-      return `<section>${title}<ul>${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></section>`;
-    }
-    case 'kpi': {
-      const items = (Array.isArray(s.content) ? s.content : []).filter((k) => k && (k.label || k.value));
-      return `<section>${title}<div class="kpis">${items.map((k) => `<div><b>${esc(k.value)}</b><span>${esc(k.label)}</span></div>`).join('')}</div></section>`;
-    }
-    case 'table': {
-      const c = s.content || {};
-      const head = (c.headers || []).map((h) => `<th>${esc(h)}</th>`).join('');
-      const body = (c.rows || []).map((r) => `<tr>${r.map((cell) => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('');
-      return `<section>${title}<div class="tablewrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div></section>`;
-    }
-    default:
-      return '';
-  }
-}
-
-function renderReport(d, id) {
-  return `<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(d.title)}</title>
-<link rel="stylesheet" href="/style.css">
-</head>
-<body>
-<main class="report">
-  <header>
-    <small>${esc(d.type)}</small>
-    <h1>${esc(d.title)}</h1>
-    <p class="meta">${esc(d.employee)}${d.department ? ' · ' + esc(d.department) : ''}${d.date ? ' · ' + esc(d.date) : ''} · رقم التقرير: ${esc(id)}</p>
-  </header>
-  ${(d.sections || []).map(renderSection).join('\n  ')}
-  <footer class="noprint"><a href="/">تقرير جديد</a> · <a href="/list.html">كل التقارير</a> · <a href="javascript:window.print()">طباعة</a></footer>
-</main>
-</body>
-</html>`;
-}
+const { renderReport } = require('./render');
 
 // تنظيف البيانات القادمة من المتصفح قبل حفظها
 const str = (v, max = 5000) => String(v ?? '').slice(0, max);
 function clean(d) {
   const sections = (Array.isArray(d.sections) ? d.sections : []).slice(0, 50).map((s) => {
-    const type = ['text', 'list', 'table', 'kpi'].includes(s.type) ? s.type : 'text';
+    const type = ['text', 'list', 'table', 'kpi', 'chart'].includes(s.type) ? s.type : 'text';
     let content;
     if (type === 'text') content = str(s.content, 20000);
     else if (type === 'list') content = (Array.isArray(s.content) ? s.content : []).slice(0, 200).map((i) => str(i, 500));
-    else if (type === 'kpi') content = (Array.isArray(s.content) ? s.content : []).slice(0, 50).map((k) => ({ label: str(k && k.label, 200), value: str(k && k.value, 100) }));
-    else {
+    else if (type === 'kpi') content = (Array.isArray(s.content) ? s.content : []).slice(0, 50).map((k) => ({ label: str(k && k.label, 200), value: str(k && k.value, 100), trend: str(k && k.trend, 30) }));
+    else if (type === 'chart') {
+      const c = s.content || {};
+      content = {
+        kind: ['bar', 'line', 'donut', 'hbar'].includes(c.kind) ? c.kind : 'bar',
+        data: (Array.isArray(c.data) ? c.data : []).slice(0, 50).map((d) => ({ label: str(d && d.label, 200), value: str(d && d.value, 50) })),
+      };
+    } else {
       const c = s.content || {};
       content = {
         headers: (Array.isArray(c.headers) ? c.headers : []).slice(0, 20).map((h) => str(h, 200)),
         rows: (Array.isArray(c.rows) ? c.rows : []).slice(0, 500).map((r) => (Array.isArray(r) ? r : []).slice(0, 20).map((x) => str(x, 1000))),
       };
     }
-    return { type, title: str(s.title, 200), content };
+    return { type, width: s.width === 'half' ? 'half' : 'full', title: str(s.title, 200), content };
   });
   return { title: str(d.title, 200), type: str(d.type, 100), employee: str(d.employee, 200), department: str(d.department, 200), date: str(d.date, 30), sections };
 }

@@ -13,3 +13,7 @@
 node server.js
 PORT=8080 node server.js     # لتغيير المنفذ (في PowerShell: $env:PORT=8080; node server.js)
 ```
+
+## كليشة الجمعية
+
+عدّل الملف `config.json` (اسم الجمعية، القسم، الألوان، بيانات التواصل في التذييل)، واستبدل `public/logo.svg` بشعار الجمعية (أو ضع `logo.png` وغيّر المسار في `config.json`). التقارير الجديدة فقط تأخذ التعديل.

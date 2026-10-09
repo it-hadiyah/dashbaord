@@ -1,0 +1,9 @@
+{
+  "orgName": "اسم الجمعية",
+  "orgSubName": "الإدارة / القسم الرسمي للجمعية",
+  "logo": "/logo.svg",
+  "color": "#3cc79a",
+  "darkColor": "#2a8c6e",
+  "footerText": "هذا التقرير صادر من نظام التقارير الداخلي",
+  "contact": { "phone": "", "email": "", "website": "", "address": "" }
+}
