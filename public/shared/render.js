@@ -339,7 +339,7 @@
       const t = T.byId(report.template);
       return { style: `--a:${p.a};--d:${p.d};--s:${p.s};--x:${p.x}`, cls: `rpt h-${t.head} m-${['narrow', 'normal', 'wide'].includes(opts.margins) ? opts.margins : 'normal'}${opts.arabicDigits ? ' ad' : ''}`, title: `${report.title || 'تقرير'}${report.date ? ' - ' + report.date : ''}` };
     }
-    return { source, rootAttrs, E };
+    return { source, rootAttrs, E, body, logoHtml, patternHtml };
   }
 
   function renderSource(report, ctx) { return makeRenderer(report, ctx).source(); }

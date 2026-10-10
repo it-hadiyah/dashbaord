@@ -76,6 +76,11 @@ function cleanContent(type, c) {
   }
 }
 
+function cleanSection(s) {
+  const type = T.TYPES.includes(s && s.type) ? s.type : 'text';
+  return { id: /^[A-Za-z0-9_-]{1,40}$/.test(s && s.id) ? s.id : T.uid(), type, title: str(s && s.title, 200), icon: slug(s && s.icon), visible: !(s && s.visible === false), width: s && s.width === 'half' ? 'half' : 'full', hint: str(s && s.hint, 300), content: cleanContent(type, s && s.content) };
+}
+
 function clean(d) {
   d = T.migrate(d || {});
   const o = d.options || {};
@@ -89,10 +94,7 @@ function clean(d) {
       cover: o.cover !== false, toc: !!o.toc, closing: !!o.closing, header: o.header !== false, pageNumbers: o.pageNumbers !== false,
       margins: ['narrow', 'normal', 'wide'].includes(o.margins) ? o.margins : 'normal', coverIcon: slug(o.coverIcon), footerText: str(o.footerText, 300), arabicDigits: !!o.arabicDigits,
     },
-    sections: arr(d.sections, 80).map((s) => {
-      const type = T.TYPES.includes(s && s.type) ? s.type : 'text';
-      return { id: /^[A-Za-z0-9_-]{1,40}$/.test(s && s.id) ? s.id : T.uid(), type, title: str(s && s.title, 200), icon: slug(s && s.icon), visible: !(s && s.visible === false), width: s && s.width === 'half' ? 'half' : 'full', hint: str(s && s.hint, 300), content: cleanContent(type, s && s.content) };
-    }),
+    sections: arr(d.sections, 80).map(cleanSection),
   };
 }
 
@@ -187,6 +189,66 @@ async function inboxCount(user) {
   return all.filter((v) => v.workflow.status === 'submitted' && (user.role === 'admin' || v.workflow.sharedWith === user.username)).length;
 }
 
+
+/* ---------- العروض التقديمية ---------- */
+const DECKS_DIR = path.join(__dirname, 'decks');
+const D = require('./public/shared/deck.js');
+const DECK_BLOCKS = new Set(D.BLOCK_TYPES.concat(['text', 'list']));
+const sid = (v) => (/^[A-Za-z0-9_-]{1,40}$/.test(String(v || '')) ? String(v) : '');
+function cleanDeck(d) {
+  d = d || {}; const o = d.options || {};
+  const sections = arr(d.sections, 120).filter((s) => DECK_BLOCKS.has(s && s.type)).map(cleanSection);
+  const ids = new Set(sections.map((s) => s.id));
+  const seen = new Set();
+  const slides = arr(d.slides, 200).map((s) => {
+    let id = sid(s && s.id) || T.uid(); if (seen.has(id)) id = T.uid(); seen.add(id);
+    const layout = D.LAYOUTS[s && s.layout] ? s.layout : 'content';
+    return { id, layout, bg: D.BGS[s && s.bg] ? s.bg : D.LAYOUTS[layout].bg, title: str(s && s.title, 300), subtitle: str(s && s.subtitle, 400), bullets: arr(s && s.bullets, 20).map((b) => str(b, 400)), notes: str(s && s.notes, 4000), blockId: ids.has(s && s.blockId) ? s.blockId : '' };
+  });
+  return {
+    version: 1, kind: 'deck', id: d.id || null, template: D.TEMPLATES.some((t) => t.id === d.template) ? d.template : 'blank', sample: !!d.sample,
+    title: str(d.title, 200), subtitle: str(d.subtitle, 300), presenter: str(d.presenter, 200), date: str(d.date, 30),
+    ratio: D.RATIOS[d.ratio] ? d.ratio : '16:9', palette: T.PALETTES[d.palette] ? d.palette : 'hadiyah',
+    options: { pageNumbers: o.pageNumbers !== false, footerText: str(o.footerText, 300), arabicDigits: !!o.arabicDigits },
+    sections, slides,
+  };
+}
+const deckFile = (id) => path.join(DECKS_DIR, id + '.json');
+async function readDeck(id) { return JSON.parse(await fs.promises.readFile(deckFile(id), 'utf8')); }
+async function writeDeck(id, content, meta) {
+  const d = Object.assign(cleanDeck(content), meta, { id });
+  const tmp = deckFile(id) + '.tmp';
+  await fs.promises.writeFile(tmp, JSON.stringify(d, null, 2)); await fs.promises.rename(tmp, deckFile(id));
+  return d;
+}
+const deckAccess = (user, d) => { const own = d.owner === user.username; return { read: own || user.role === 'admin', edit: own || user.role === 'admin' }; };
+async function listDecks(user, scope) {
+  if (scope === 'all' && user.role !== 'admin') return null;
+  const out = [];
+  for (const f of (await fs.promises.readdir(DECKS_DIR)).filter((x) => x.endsWith('.json'))) {
+    try {
+      const d = JSON.parse(await fs.promises.readFile(path.join(DECKS_DIR, f), 'utf8'));
+      if (scope !== 'all' && d.owner !== user.username) continue;
+      out.push({ id: f.slice(0, -5), title: d.title, subtitle: d.subtitle, slides: (d.slides || []).length, ratio: d.ratio, owner: d.owner, ownerName: d.ownerName, updatedAt: d.updatedAt, createdAt: d.createdAt, template: d.template });
+    } catch (e) { /* تجاهل التالف */ }
+  }
+  return out.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+}
+let inlineAssets = null;
+function standaloneHtml(deck, id) {
+  const rd = (f) => fs.readFileSync(path.join(PUBLIC_DIR, f), 'utf8');
+  const data = (u) => { try { const f = path.join(PUBLIC_DIR, path.normalize(u)); if (!f.startsWith(PUBLIC_DIR + path.sep)) return null; const ext = path.extname(f).toLowerCase(); return `data:${MIME[ext] || 'application/octet-stream'};base64,${fs.readFileSync(f).toString('base64')}`; } catch (e) { return null; } };
+  if (!inlineAssets) {
+    let css = ['css/tokens.css', 'css/report.css', 'css/deck.css'].map(rd).join('\n');
+    css = css.replace(/url\(["']?(\/fonts\/[^"')]+)["']?\)/g, (m, u) => `url(${data(u) || u})`);
+    inlineAssets = { css, js: rd('js/deck-present.js') };
+  }
+  let html = D.renderDeckPage(deck, { config: loadConfig(), id, inlineCss: inlineAssets.css, allowPrint: true });
+  html = html.replace(/<script src="\/js\/deck-present\.js"><\/script>/, () => `<script>${inlineAssets.js}</script>`);
+  html = html.replace(/(src|href)="(\/brand\/[^"]+)"/g, (m, a, u) => { const d = data(u); return d ? `${a}="${d}"` : m; });
+  return html;
+}
+
 /* ---------- الجلسات والمصادقة ---------- */
 const parseCookies = (req) => Object.fromEntries(String(req.headers.cookie || '').split(';').map((c) => { const i = c.indexOf('='); return i < 0 ? [] : [c.slice(0, i).trim(), decodeURIComponent(c.slice(i + 1).trim())]; }).filter((x) => x.length));
 const tokenOf = (req) => parseCookies(req).rb_sid || '';
@@ -197,7 +259,7 @@ const sameOrigin = (req) => { const o = req.headers.origin; if (!o) return true;
 const deny = (msg) => Object.assign(new Error(msg), { status: 403 });
 const redirect = (res, to) => { res.writeHead(302, { Location: to, 'Cache-Control': 'no-store' }); res.end(); };
 const page403 = (res, msg) => send(res, 403, `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>غير مصرّح</title><link rel="stylesheet" href="/css/tokens.css"><body style="font-family:var(--font);display:grid;place-items:center;min-height:100vh;margin:0;background:#f3f5f8"><div style="text-align:center;background:#fff;padding:40px 48px;border-radius:16px;box-shadow:0 4px 24px #0002"><h1 style="margin:0 0 8px">غير مصرّح</h1><p style="color:#647385">${msg}</p><p><a href="/">العودة للرئيسية</a></p></div></body></html>`, MIME['.html']);
-const PROTECTED_PAGES = new Set(['/', '/index.html', '/list.html', '/admin.html']);
+const PROTECTED_PAGES = new Set(['/', '/index.html', '/list.html', '/admin.html', '/decks.html', '/deck.html']);
 
 async function handleApi(req, res, url, p) {
   const method = req.method;
@@ -253,6 +315,45 @@ async function handleApi(req, res, url, p) {
       }
     } catch (e) { return json(res, 400, { error: e.message }); }
     return json(res, 404, { error: 'غير موجود' });
+  }
+
+  // --- العروض التقديمية ---
+  if (p === '/api/decks' && method === 'GET') {
+    const rows = await listDecks(user, url.searchParams.get('scope') || 'mine');
+    return rows ? json(res, 200, rows) : json(res, 403, { error: 'للمسؤول فقط' });
+  }
+  if (p === '/api/decks' && method === 'POST') {
+    const data = JSON.parse(await readBody(req));
+    if (!str(data.title).trim()) return json(res, 400, { error: 'عنوان العرض مطلوب' });
+    const id = Date.now().toString(36) + '-' + crypto.randomBytes(3).toString('hex'), now = new Date().toISOString();
+    await writeDeck(id, data, { owner: user.username, ownerName: user.name, createdAt: now, updatedAt: now });
+    store.audit({ action: 'deck-create', by: user.username, id });
+    return json(res, 201, { id, url: '/decks/' + id + '.html' });
+  }
+  const dm = p.match(/^\/api\/decks\/([a-z0-9-]+)(?:\/(export\.html))?$/);
+  if (dm) {
+    if (!ID_RE.test(dm[1])) return json(res, 404, { error: 'غير موجود' });
+    const did = dm[1], dk = await readDeck(did), dacc = deckAccess(user, dk);
+    if (!dacc.read) return json(res, 403, { error: 'غير مصرّح لك بهذا العرض' });
+    if (dm[2] && method === 'GET') {
+      store.audit({ action: 'deck-export-html', by: user.username, id: did });
+      return send(res, 200, standaloneHtml(dk, did), MIME['.html'], { 'Content-Disposition': `attachment; filename="deck-${did}.html"`, 'Cache-Control': 'no-store' });
+    }
+    if (method === 'GET') return json(res, 200, Object.assign({}, dk, { access: dacc }));
+    if (method === 'PUT') {
+      if (!dacc.edit) return json(res, 403, { error: 'لا يمكنك تعديل هذا العرض' });
+      const data = JSON.parse(await readBody(req));
+      if (!str(data.title).trim()) return json(res, 400, { error: 'عنوان العرض مطلوب' });
+      await writeDeck(did, data, { owner: dk.owner, ownerName: dk.ownerName, createdAt: dk.createdAt, updatedAt: new Date().toISOString() });
+      store.audit({ action: 'deck-update', by: user.username, id: did });
+      return json(res, 200, { id: did, url: '/decks/' + did + '.html' });
+    }
+    if (method === 'DELETE') {
+      if (!dacc.edit) return json(res, 403, { error: 'لا يمكنك حذف هذا العرض' });
+      await fs.promises.unlink(deckFile(did)); store.audit({ action: 'deck-delete', by: user.username, id: did });
+      return json(res, 200, { ok: true });
+    }
+    return json(res, 405, { error: 'غير مدعوم' });
   }
 
   // --- التقارير ---
@@ -334,6 +435,16 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, R.renderPage(d, { config: loadConfig(), id: m[1], workflow: d.workflow }), MIME['.html'], { 'Cache-Control': 'no-store' });
     }
 
+    let dv = p.match(/^\/decks\/([a-z0-9-]+)\.html$/);
+    if (dv && req.method === 'GET') {
+      if (!ID_RE.test(dv[1])) return send(res, 404, 'غير موجود');
+      const user = userOf(req);
+      if (!user) return redirect(res, '/login.html?next=' + encodeURIComponent(req.url));
+      const d = await readDeck(dv[1]);
+      if (!deckAccess(user, d).read) return page403(res, 'هذا العرض ليس من عروضك.');
+      return send(res, 200, D.renderDeckPage(d, { config: loadConfig(), id: dv[1], actions: `<a class="btn" href="/deck.html?id=${dv[1]}">تعديل</a><a class="btn" href="/api/decks/${dv[1]}/export.html">تنزيل صفحة ويب</a>` }), MIME['.html'], { 'Cache-Control': 'no-store' });
+    }
+
     if (req.method === 'GET' && PROTECTED_PAGES.has(p)) {
       const user = userOf(req);
       if (!user) return redirect(res, '/login.html?next=' + encodeURIComponent(req.url));
@@ -348,6 +459,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 fs.mkdirSync(REPORTS_DIR, { recursive: true });
+fs.mkdirSync(DECKS_DIR, { recursive: true });
 auth.bootstrapAdmin().then((pw) => {
   if (pw) {
     const line = '='.repeat(64);

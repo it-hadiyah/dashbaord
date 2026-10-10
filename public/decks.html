@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>العروض التقديمية</title>
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="icon" href="/brand/logo-icon.png" type="image/png">
+<script>try{var t=localStorage.getItem('rb-theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<script src="/js/guard.js"></script>
+<style>.tcard.dk{padding:16px;text-align:right;gap:6px;cursor:pointer;font:inherit;color:inherit}.tcard.dk b{font-size:1.05rem}</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><img src="/brand/logo-icon.png" alt="" width="30" height="30"><div><strong>منشئ التقارير والعروض</strong></div></div>
+  <div class="top-actions"><nav class="top-links"><a href="/" class="nav-a">تقرير جديد</a><a href="/list.html" class="nav-a">التقارير</a><a href="/decks.html" class="nav-a on">العروض</a><a href="/admin.html" class="nav-a" id="admin-link" hidden>إدارة النظام</a></nav><span id="user-chip"></span></div>
+</header>
+<main class="page-wrap">
+  <h1>العروض التقديمية</h1>
+  <p class="muted">أنشئ عرضاً من قالب جاهز، أو حوّل تقريراً إلى عرض تقديمي تُستخرج شرائحه من بياناته الفعلية دون اختلاق أي رقم.</p>
+
+  <h2 style="margin-top:24px">عروضي</h2>
+  <div class="chips" id="tabs" role="tablist" aria-label="نطاق العروض"></div>
+  <div id="list" class="rlist" aria-live="polite" style="margin-top:12px"></div>
+  <div id="empty" class="empty" hidden><b>لا توجد عروض بعد</b><small>اختر قالباً من الأسفل لبدء عرضك الأول.</small></div>
+
+  <h2 style="margin-top:32px">عرض جديد</h2>
+  <div class="two" style="gap:16px;margin:8px 0 14px;align-items:end">
+    <label class="fld"><span>مقاس الشرائح</span><select id="ratio"><option value="16:9">عريض 16:9</option><option value="4:3">قياسي 4:3</option></select></label>
+    <label class="chk"><input type="checkbox" id="sample"> ابدأ ببيانات تجريبية توضيحية</label>
+  </div>
+  <div id="tpls" class="tgrid"></div>
+
+  <h2 style="margin-top:32px">تحويل تقرير إلى عرض</h2>
+  <div class="two" style="gap:16px;align-items:end">
+    <label class="fld"><span>التقرير</span><select id="rep"></select></label>
+    <label class="fld"><span>أقصى عدد للشرائح</span><input id="maxs" type="number" min="4" max="60" value="10"></label>
+  </div>
+  <p class="muted">تُختار الأقسام الأهم (مؤشرات، مقارنات، رسوم، حسابات) وتُنقل بياناتها كما هي. الأقسام النصية تُلخَّص إلى نقاط من نصّها نفسه.</p>
+  <button type="button" class="btn primary" id="conv">تحويل إلى عرض</button>
+</main>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<script src="/shared/templates.js"></script>
+<script src="/shared/calc.js"></script>
+<script src="/shared/render.js"></script>
+<script src="/shared/deck.js"></script>
+<script type="module">
+import { el, btn, toast, confirmDialog } from '/js/ui.js';
+import { mountUserChip } from '/js/userchip.js';
+const D = window.RBD;
+const list = document.getElementById('list');
+let me, scope = 'mine', all = [];
+const fmt = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('ar-SA-u-ca-gregory', { year: 'numeric', month: 'short', day: 'numeric' }); };
+const post = async (url, body) => { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const o = await r.json().catch(() => ({})); if (!r.ok) throw new Error(o.error || 'تعذر التنفيذ'); return o; };
+
+function draw() {
+  list.replaceChildren();
+  document.getElementById('empty').hidden = all.length > 0;
+  all.forEach((d) => list.append(el('div', { class: 'ritem' },
+    el('div', { class: 'rt' }, el('a', { class: 'ttl', href: '/deck.html?id=' + d.id }, d.title || 'بدون عنوان'), el('div', { class: 'rm' }, el('span', {}, d.slides + ' شريحة'), el('span', {}, d.ratio), scope === 'all' ? el('span', {}, 'المالك: ' + (d.ownerName || d.owner)) : null, el('span', {}, 'آخر تعديل: ' + fmt(d.updatedAt)))),
+    el('div', { class: 'ra' }, el('a', { class: 'btn sm', href: '/deck.html?id=' + d.id }, 'تعديل'), el('a', { class: 'btn sm primary', href: '/decks/' + d.id + '.html#present', target: '_blank', rel: 'noopener' }, 'عرض'),
+      btn('نسخة', { cls: 'sm ghost', onclick: () => dup(d.id) }), btn('حذف', { cls: 'sm ghost', onclick: () => del(d) })))));
+}
+async function dup(id) { try { const d = await (await fetch('/api/decks/' + id)).json(); delete d.id; d.title += ' (نسخة)'; await post('/api/decks', d); toast('تم إنشاء نسخة', { tone: 'ok' }); load(); } catch (e) { toast(e.message, { tone: 'err' }); } }
+async function del(d) { if (!(await confirmDialog({ title: 'حذف العرض', text: '«' + (d.title || '') + '» سيُحذف نهائياً.', ok: 'حذف', danger: true }))) return; const r = await fetch('/api/decks/' + d.id, { method: 'DELETE' }); if (r.ok) { toast('تم الحذف'); load(); } else toast('تعذر الحذف', { tone: 'err' }); }
+async function load() { try { const r = await fetch('/api/decks?scope=' + scope); all = r.ok ? await r.json() : []; } catch (e) { all = []; } draw(); }
+
+async function create(t) {
+  try {
+    const deck = D.createDeck(t.id, { sample: document.getElementById('sample').checked, ratio: document.getElementById('ratio').value });
+    if (!deck.title) deck.title = t.name;
+    const o = await post('/api/decks', deck); location.href = '/deck.html?id=' + o.id;
+  } catch (e) { toast(e.message, { tone: 'err' }); }
+}
+const tp = document.getElementById('tpls');
+D.TEMPLATES.forEach((t) => tp.append(el('button', { type: 'button', class: 'tcard dk', onclick: () => create(t) }, el('b', {}, t.name), el('small', {}, t.desc), el('small', { class: 'muted' }, t.slides.length + ' شريحة'))));
+
+document.getElementById('conv').onclick = async () => {
+  const id = document.getElementById('rep').value; if (!id) { toast('اختر تقريراً أولاً', { tone: 'err' }); return; }
+  try {
+    const rep = await (await fetch('/api/reports/' + id)).json();
+    const deck = D.fromReport(rep, { maxSlides: parseInt(document.getElementById('maxs').value, 10) || 10, ratio: document.getElementById('ratio').value });
+    deck.title = rep.title || 'عرض من تقرير';
+    const o = await post('/api/decks', deck); location.href = '/deck.html?id=' + o.id;
+  } catch (e) { toast(e.message, { tone: 'err' }); }
+};
+
+(async () => {
+  me = await (await fetch('/api/me')).json();
+  mountUserChip(document.getElementById('user-chip'), me);
+  if (me.role === 'admin') document.getElementById('admin-link').hidden = false;
+  const tabs = [['mine', 'عروضي']]; if (me.role === 'admin') tabs.push(['all', 'كل العروض']);
+  const box = document.getElementById('tabs');
+  const paint = () => box.replaceChildren(...tabs.map(([k, n]) => el('button', { type: 'button', role: 'tab', class: 'chip' + (k === scope ? ' on' : ''), 'aria-selected': String(k === scope), onclick: () => { scope = k; paint(); load(); } }, n)));
+  paint(); load();
+  try { const reps = await (await fetch('/api/reports?scope=mine')).json(); const sel = document.getElementById('rep'); reps.forEach((r) => sel.append(el('option', { value: r.id }, r.title || 'بدون عنوان'))); if (!reps.length) sel.append(el('option', { value: '' }, 'لا توجد تقارير')); } catch (e) { /* ignore */ }
+})();
+</script>
+</body>
+</html>

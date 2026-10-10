@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>محرر العرض</title>
+<link rel="stylesheet" href="/css/tokens.css">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/report.css">
+<link rel="stylesheet" href="/css/components.css">
+<link rel="stylesheet" href="/css/deck.css">
+<link rel="icon" href="/brand/logo-icon.png" type="image/png">
+<script>try{var t=localStorage.getItem('rb-theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<script src="/js/guard.js"></script>
+<style>
+body.dk-page{display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg,#f3f6f8)}
+.dk-wrap{flex:1;min-height:0;display:grid;grid-template-columns:210px minmax(0,1fr) 380px}
+.dk-thumbs{overflow:auto;border-inline-end:1px solid var(--border,#dde3e8);padding:10px;display:flex;flex-direction:column;gap:10px;background:var(--surface,#fff)}
+.dk-tools{display:flex;gap:6px;flex-wrap:wrap}
+.dk-th{position:relative;border:2px solid transparent;border-radius:8px;cursor:pointer;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);flex:none}
+.dk-th.on{border-color:var(--brand,#1f7a5c)} .dk-th.over{outline:2px dashed var(--brand,#1f7a5c)}
+.dk-th .n{position:absolute;top:4px;inset-inline-start:6px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;border-radius:6px;padding:0 6px;z-index:3}
+.dk-th .in{pointer-events:none;transform-origin:top right}
+.dk-th .n{top:auto;bottom:4px;inset-inline-start:auto;inset-inline-end:6px}
+.dk-canvas{overflow:auto;padding:18px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.dk-stage{background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.25);flex:none;position:relative;overflow:hidden}
+.dk-stage .slide{transform-origin:top right;position:absolute;top:0;right:0}
+.dk-props{overflow:auto;border-inline-start:1px solid var(--border,#dde3e8);padding:14px;background:var(--surface,#fff)}
+.dk-props h3{margin:14px 0 6px;font-size:1rem}
+.dk-props textarea{width:100%;font:inherit;padding:8px;border:1px solid var(--border,#d6dde3);border-radius:8px}
+#dk-block .ed-head,#dk-block .hint,#dk-block .sec-ed>.fld{display:none}
+.dk-th .slide{transform-origin:top right}
+.dk-tabs{display:flex;gap:6px;margin-bottom:8px}
+@media(max-width:1000px){.dk-wrap{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;overflow:auto}.dk-thumbs{flex-direction:row;overflow-x:auto;border:0}.dk-th{width:150px}}
+</style>
+</head>
+<body class="dk-page">
+<header class="top">
+  <div class="brand"><img src="/brand/logo-icon.png" alt="" width="30" height="30"><div><strong id="dk-name">محرر العرض</strong><small id="dk-status"></small></div></div>
+  <div class="top-actions"><nav class="top-links"><a href="/decks.html" class="nav-a">العروض</a></nav><span id="user-chip"></span>
+    <button type="button" class="btn ghost sm" id="b-undo">تراجع</button><button type="button" class="btn ghost sm" id="b-redo">إعادة</button>
+    <button type="button" class="btn ghost" id="b-export" aria-haspopup="menu">تصدير ومشاركة</button>
+    <button type="button" class="btn" id="b-present">عرض</button>
+    <button type="button" class="btn primary" id="b-save">حفظ</button></div>
+</header>
+<div class="dk-wrap">
+  <aside class="dk-thumbs" id="dk-thumbs" aria-label="الشرائح"></aside>
+  <main class="dk-canvas" id="dk-canvas"><div class="dk-stage" id="dk-stage"></div><div class="muted" id="dk-hint">انقر الشريحة في القائمة لتحريرها. اسحبها لإعادة الترتيب.</div></main>
+  <aside class="dk-props" id="dk-props" aria-label="خصائص الشريحة"></aside>
+</div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<div id="menu-root"></div>
+<script src="/shared/templates.js"></script>
+<script src="/shared/calc.js"></script>
+<script src="/shared/render.js"></script>
+<script src="/shared/deck.js"></script>
+<script type="module" src="/js/deck-editor.js"></script>
+</body>
+</html>
