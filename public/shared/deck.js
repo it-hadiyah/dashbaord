@@ -54,7 +54,7 @@
       const bl = (slide.bullets || []).filter((b) => String(b).trim());
       const empty = block && R.isEmptySection(block);
       let main = '';
-      if (block && !empty) main = `<div class="s-block b-${esc(block.type)}">${r.body(block)}</div>`;
+      if (block && !empty) main = `<div class="s-wrap"><div class="s-block b-${esc(block.type)}">${r.body(block)}</div>${r.sourceNote(block)}</div>`;
       else if (block && empty && ctx.preview) main = '<div class="s-block s-ph">أضف بيانات لهذا المحتوى من لوحة التحرير</div>';
       const list = bl.length ? `<ul class="s-list">${bl.map((b) => `<li>${E(b)}</li>`).join('')}</ul>` : '';
       const two = main && list ? ' two' : '';

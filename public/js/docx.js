@@ -281,6 +281,8 @@ export async function exportDocx(report, config, fileName, workflow) {
       case 'callout': body.push(calloutXml(ctx, c)); break;
       default: break;
     }
+    const srcTxt = [s.source && 'المصدر: ' + s.source, /^\d{4}-\d{2}-\d{2}$/.test(s.asOf || '') && 'آخر تحديث: ' + s.asOf].filter(Boolean).join(' · ');
+    if (srcTxt) body.push(para(run(ctx, srcTxt, { size: 9, color: '7B8996' }), { after: 120, line: 260 }));
   }
 
   if (workflow && workflow.status === 'approved') {

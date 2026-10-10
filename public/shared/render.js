@@ -275,6 +275,12 @@
       }
     }
 
+    function sourceNote(s) {
+      const src = String(s.source || '').trim(), d = isoOk(s.asOf) ? s.asOf : '';
+      if (!src && !d) return '';
+      return `<p class="src-note">${src ? `المصدر: ${E(src)}` : ''}${src && d ? ' · ' : ''}${d ? `آخر تحديث: <bdi>${E(d)}</bdi>` : ''}</p>`;
+    }
+
     function section(s, i) {
       if (s.visible === false) return '';
       if (s.type === 'pagebreak') return `<div class="blk pb" data-sid="${escRaw(s.id)}"></div>`;
@@ -284,7 +290,7 @@
       const title = s.title || sic ? `<h2 class="bt">${sic}${E(s.title)}</h2>` : '';
       const w = s.width === 'half' ? 'half' : 'full';
       if (empty) return `<section class="blk ph w-${w}" data-sid="${escRaw(s.id)}" data-title="${escRaw(s.title)}">${title}<p class="phm">${E(s.hint || 'سيظهر هنا ما تكتبه في هذا القسم')}</p></section>`;
-      return `<section class="blk b-${s.type} w-${w}" data-sid="${escRaw(s.id)}" data-title="${escRaw(s.title)}">${title}${body(s)}</section>`;
+      return `<section class="blk b-${s.type} w-${w}" data-sid="${escRaw(s.id)}" data-title="${escRaw(s.title)}">${title}${body(s)}${sourceNote(s)}</section>`;
     }
 
     function logoHtml(cls, o) {
@@ -339,7 +345,7 @@
       const t = T.byId(report.template);
       return { style: `--a:${p.a};--d:${p.d};--s:${p.s};--x:${p.x}`, cls: `rpt h-${t.head} m-${['narrow', 'normal', 'wide'].includes(opts.margins) ? opts.margins : 'normal'}${opts.arabicDigits ? ' ad' : ''}`, title: `${report.title || 'تقرير'}${report.date ? ' - ' + report.date : ''}` };
     }
-    return { source, rootAttrs, E, body, logoHtml, patternHtml };
+    return { source, rootAttrs, E, body, logoHtml, patternHtml, sourceNote };
   }
 
   function renderSource(report, ctx) { return makeRenderer(report, ctx).source(); }

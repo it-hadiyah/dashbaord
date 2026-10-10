@@ -384,6 +384,7 @@ export function sectionEditor(s) {
     s.hint ? el('div', { class: 'hint', role: 'note' }, el('span', { html: icon('sparkle', 16) }), el('span', {}, s.hint)) : null,
     s.type === 'pagebreak' ? null : field('عنوان القسم', textInput(s.title, (v) => { upd(s.id, 'title', (x) => { x.title = v; }, 'titles'); const h = document.querySelector('.ed-head h2'); if (h) h.textContent = v || info.name; }, { ph: 'مثال: ' + info.name })),
     body,
+    ['pagebreak', 'text', 'callout'].includes(s.type) ? null : el('div', { class: 'two' }, field('مصدر البيانات (اختياري)', textInput(s.source || '', (v) => upd(s.id, 'src', (x) => { x.source = v; }), { ph: 'مثال: النظام المالي' })), field('آخر تحديث للأرقام', textInput(s.asOf || '', (v) => upd(s.id, 'asof', (x) => { x.asOf = v; }), { type: 'date' }))),
     s.type === 'pagebreak' ? null : field('أيقونة بجانب العنوان (اختياري)', iconButton(s.icon || '', (v) => upd(s.id, null, (x) => { x.icon = v; }), { title: 'اختيار أيقونة للقسم', dialogTitle: 'أيقونة القسم' }), 'تظهر بجوار عنوان القسم في التقرير.'),
     s.type === 'pagebreak' ? null : field('عرض القسم في الصفحة', segmented([['full', 'عرض كامل'], ['half', 'نصف العرض']], s.width, (v) => upd(s.id, null, (x) => { x.width = v; }, 'structure'), 'عرض القسم'), 'القسمان المتجاوران بنصف العرض يُعرضان جنباً إلى جنب.'));
 }

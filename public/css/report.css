@@ -143,3 +143,5 @@ body.thumb { overflow: hidden; background: #fff; } body.thumb .pages { padding: 
 .g-track { position: relative; border-bottom: 1px solid #eef1f4; min-height: 30px; background-image: repeating-linear-gradient(to left, transparent 0 calc(100% / 12 - 1px), #f1f4f7 calc(100% / 12 - 1px) calc(100% / 12)); }
 .g-bar { position: absolute; top: 6px; bottom: 6px; background: color-mix(in srgb, var(--a) 28%, #fff); border-radius: 5px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--a) 55%, #fff); min-width: 3px; } .g-bar b { position: absolute; top: 0; bottom: 0; right: 0; background: var(--a); } .g-bar em { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; font-size: 10px; font-weight: 700; color: #fff; mix-blend-mode: normal; text-shadow: 0 0 2px rgba(0, 0, 0, .35); }
 .g-ov { position: absolute; top: 26px; bottom: 0; right: 0; left: 0; margin-inline-start: 34mm; pointer-events: none; } .g-ov { grid-column: 1 / -1; } .g-today { position: absolute; top: 0; bottom: 0; width: 2px; background: #d4533b; }
+
+.src-note { font-size: 11px; color: #7b8996; margin: 6px 0 0; line-height: 1.5; }

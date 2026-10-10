@@ -175,7 +175,9 @@ async function slideXml(c, deck, s, i, total, logos, geo) {
     }
     if (hasBlk) {
       const bw = bl.length ? (sw - 120) * 0.58 : sw - 120;
-      shapes.push(...(await blockShapes(c, blk, { x: 60, y: y0 + (bl.length ? 0 : 6), w: bw, h: H })));
+      shapes.push(...(await blockShapes(c, blk, { x: 60, y: y0 + (bl.length ? 0 : 6), w: bw, h: H - (blk.source || blk.asOf ? 26 : 0) })));
+      const note = [blk.source && 'المصدر: ' + blk.source, /^\d{4}-\d{2}-\d{2}$/.test(blk.asOf || '') && 'آخر تحديث: ' + blk.asOf].filter(Boolean).join(' · ');
+      if (note) shapes.push(box(c, { x: 60, y: sh - 72, w: sw - 120, h: 28, text: P(c, note, { sz: 12, color: '7B8996' }), name: 'المصدر' }));
     }
     shapes.push(box(c, { x: 60, y: sh - 40, w: sw - 120, h: 28, text: P(c, `${i + 1} / ${total}`, { sz: 12, color: '7B8996', algn: 'l' }), name: 'رقم الشريحة' }));
   }

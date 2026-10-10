@@ -79,7 +79,7 @@ function cleanContent(type, c) {
 
 function cleanSection(s) {
   const type = T.TYPES.includes(s && s.type) ? s.type : 'text';
-  return { id: /^[A-Za-z0-9_-]{1,40}$/.test(s && s.id) ? s.id : T.uid(), type, title: str(s && s.title, 200), icon: slug(s && s.icon), visible: !(s && s.visible === false), width: s && s.width === 'half' ? 'half' : 'full', hint: str(s && s.hint, 300), content: cleanContent(type, s && s.content) };
+  return { id: /^[A-Za-z0-9_-]{1,40}$/.test(s && s.id) ? s.id : T.uid(), type, title: str(s && s.title, 200), icon: slug(s && s.icon), visible: !(s && s.visible === false), width: s && s.width === 'half' ? 'half' : 'full', hint: str(s && s.hint, 300), source: str(s && s.source, 200), asOf: /^\d{4}-\d{2}-\d{2}$/.test(String(s && s.asOf)) ? s.asOf : '', content: cleanContent(type, s && s.content) };
 }
 
 function clean(d) {
