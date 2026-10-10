@@ -86,7 +86,7 @@
 
     if (kind === 'gauge') {
       const v = data[0].value, mx = num(c.max) > 0 ? num(c.max) : 100, ratio = Math.max(0, Math.min(1, v / mx));
-      return `<svg viewBox="0 0 200 138" role="img"><path class="gg-bg" d="M20 100 A80 80 0 0 1 180 100" pathLength="100"/><path class="gg-fg" d="M20 100 A80 80 0 0 1 180 100" pathLength="100" stroke-dasharray="${(ratio * 100).toFixed(2)} 100"/><text class="big" x="100" y="94" text-anchor="middle">${E(fmt(v))}${unit}</text><text class="l" x="20" y="116" text-anchor="middle">0</text><text class="l" x="180" y="116" text-anchor="middle">${E(fmt(mx))}</text><text class="l" x="100" y="132" text-anchor="middle">${E(data[0].label)} · ${E(Math.round(ratio * 100))}%</text></svg>`;
+      return `<svg viewBox="0 0 200 138" role="img"><path class="gg-bg" d="M20 100 A80 80 0 0 1 180 100" pathLength="100"/><path class="gg-fg" d="M20 100 A80 80 0 0 1 180 100" pathLength="100" stroke-dasharray="${(ratio * 100).toFixed(2)} 100"/><text class="big" x="100" y="94" text-anchor="middle">${E(fmt(v))}${unit}</text><text class="l" x="20" y="116" text-anchor="middle">0</text><text class="l" x="180" y="116" text-anchor="middle">${E(fmt(mx))}</text><text class="l" x="100" y="132" text-anchor="middle">${E(data[0].label)}</text></svg>`;
     }
 
     if (kind === 'radar') {
