@@ -29,3 +29,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--f
 :root[data-theme='dark'] .chip-status.draft { background: #223140; color: #b6c3d0; } :root[data-theme='dark'] .chip-status.submitted { background: #3a2f14; color: #f0c060; } :root[data-theme='dark'] .chip-status.approved { background: #173a30; color: #7be0bd; } :root[data-theme='dark'] .chip-status.returned { background: #3a1f1c; color: #ff8a7a; }
 
 .fld[hidden], [hidden] { display: none !important; }
+
+/* استيراد البيانات */
+.imp{display:grid;gap:12px;min-width:min(640px,86vw)}
+.imp-src{display:grid;gap:8px}
+.imp-src textarea{width:100%;font:inherit;padding:8px;border:1px solid var(--line,#d6dde3);border-radius:8px}
+.imp-prev .tscroll{max-height:220px;overflow:auto}
+.imp-maps{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.imp-map{display:grid;gap:4px;font-size:.85rem}
+.imp-warn{color:#9a5b00;margin:2px 0;font-size:.85rem}
+.imp-ok{color:#1b7a52;margin:2px 0;font-size:.85rem}

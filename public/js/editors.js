@@ -4,6 +4,7 @@ import { icon } from './icons.js';
 import { edit, store } from './store.js';
 import * as T from './templates.js';
 import { iconButton, pickIcon, iconSrc } from './iconpicker.js';
+import { importButton } from './importer.js';
 
 const RBR = window.RBR;
 let uidn = 0;
@@ -138,7 +139,7 @@ function tableEditor(s) {
       el('td', { class: 'ract' }, iconBtn('x', 'حذف الصف', () => { upd(s.id, null, (x) => { if (x.content.rows.length > 1) x.content.rows.splice(i, 1); else x.content.rows[0] = Array(x.content.headers.length).fill(''); }, 'structure'); draw(); }, 'danger tiny')))));
     t.append(tb);
     wrap.replaceChildren(el('div', { class: 'tscroll' }, t),
-      el('div', { class: 'btns' }, btn('إضافة صف', { icon: 'plus', cls: 'sm ghost', onclick: () => { upd(s.id, null, (x) => x.content.rows.push(Array(x.content.headers.length).fill('')), 'structure'); draw(); } }),
+      el('div', { class: 'btns' }, importButton(s), btn('إضافة صف', { icon: 'plus', cls: 'sm ghost', onclick: () => { upd(s.id, null, (x) => x.content.rows.push(Array(x.content.headers.length).fill('')), 'structure'); draw(); } }),
         btn('إضافة عمود', { icon: 'plus', cls: 'sm ghost', onclick: () => { upd(s.id, null, (x) => { x.content.headers.push(''); x.content.rows.forEach((r) => r.push('')); }, 'structure'); draw(); } }),
         el('label', { class: 'chk' }, el('input', { type: 'checkbox', checked: c.zebra !== false, onchange: (e) => upd(s.id, null, (x) => { x.content.zebra = e.target.checked; }) }), 'تظليل الصفوف بالتناوب'),
         el('label', { class: 'chk', title: 'يلوّن الخلايا الرقمية حسب قيمتها (الأعلى أغمق)' }, el('input', { type: 'checkbox', checked: !!c.heat, onchange: (e) => upd(s.id, null, (x) => { x.content.heat = e.target.checked; }) }), 'خريطة حرارية (تلوين الأرقام)')),
@@ -149,7 +150,7 @@ function tableEditor(s) {
 }
 
 function kpiEditor(s) {
-  return el('div', {}, field('شكل العرض', segmented([['cards', 'بطاقات'], ['highlights', 'أرقام بارزة']], s.content.style, (v) => upd(s.id, null, (x) => { x.content.style = v; }), 'شكل العرض')),
+  return el('div', {}, el('div', { class: 'btns' }, importButton(s)), field('شكل العرض', segmented([['cards', 'بطاقات'], ['highlights', 'أرقام بارزة']], s.content.style, (v) => upd(s.id, null, (x) => { x.content.style = v; }), 'شكل العرض')),
     rows(s, { get: (x) => x.content.items, make: () => ({ icon: '', label: '', value: '', trend: '' }), addLabel: 'إضافة مؤشر', min: 1,
       cols: [{ key: 'icon', label: 'أيقونة', type: 'icon', w: '46px' }, { key: 'label', label: 'التسمية', ph: 'عدد المستفيدين', w: '1.5fr' }, { key: 'value', label: 'القيمة', ph: '3,123', w: '1fr' }, { key: 'trend', label: 'التغيّر', ph: '+4% أو -7%', w: '1fr' }] }),
     el('p', { class: 'tip' }, 'التغيّر اختياري: ابدأه بعلامة - لإظهار سهم هابط.'));
@@ -158,7 +159,7 @@ function kpiEditor(s) {
 const KINDS = [['bar', 'أعمدة'], ['line', 'خط'], ['area', 'مساحة'], ['donut', 'حلقة'], ['pie', 'دائرة'], ['hbar', 'أفقي'], ['waterfall', 'شلال'], ['gauge', 'مقياس'], ['radar', 'رادار'], ['funnel', 'قمع']];
 const KIND_TIPS = { waterfall: 'الشلال: أول صف = الرصيد الافتتاحي، والصفوف التالية قيم التغيّر (موجبة أو سالبة بعلامة -)، ويُضاف عمود «الإجمالي» تلقائياً.', gauge: 'المقياس: يستخدم أول صف فقط (القيمة)، وحدد القيمة القصوى بالأسفل.', radar: 'الرادار: أدخل 3 محاور أو أكثر بنفس المقياس.', funnel: 'القمع: رتّب المراحل من الأكبر إلى الأصغر (مثل: المتقدمون ← المقبولون ← المستفيدون).', pie: 'الدائرة: تُحسب النسبة تلقائياً من مجموع القيم.' };
 function chartEditor(s) {
-  return el('div', {}, field('نوع الرسم', segmented(KINDS, s.content.kind, (v) => upd(s.id, null, (x) => { x.content.kind = v; }), 'نوع الرسم')),
+  return el('div', {}, el('div', { class: 'btns' }, importButton(s)), field('نوع الرسم', segmented(KINDS, s.content.kind, (v) => upd(s.id, null, (x) => { x.content.kind = v; }), 'نوع الرسم')),
     rows(s, { get: (x) => x.content.data, make: () => ({ label: '', value: '' }), addLabel: 'إضافة نقطة', min: 1,
       cols: [{ key: 'label', label: 'التسمية', ph: 'يناير', w: '1.5fr' }, { key: 'value', label: 'القيمة (رقم)', ph: '120', w: '1fr', inputmode: 'decimal' }] }),
     s.content.kind === 'gauge' ? field('القيمة القصوى للمقياس', textInput(s.content.max || '100', (v) => upd(s.id, 'mx', (x) => { x.content.max = v; }), { ph: '100', inputmode: 'decimal' })) : null,
@@ -339,6 +340,7 @@ function compareEditor(s) {
     wrap.replaceChildren(
       el('div', { class: 'hint', role: 'note' }, el('span', { html: icon('compare', 16) }), el('span', {}, 'أدخل قيمة كل بند في الفترتين، وتظهر نسبة الارتفاع أو الانخفاض والفرق تلقائياً. إذا كان الانخفاض هو الأفضل (كالمصروفات) اختر ذلك للبند ليُلوَّن بشكل صحيح.')),
       el('div', { class: 'two' }, field('اسم الفترة السابقة', lab('prev', 'السنة الماضية')), field('اسم الفترة الحالية', lab('curr', 'السنة الحالية'))),
+      el('div', { class: 'btns' }, importButton(s)),
       el('div', { class: 'cmp-grid cmp-head' }, el('span', {}, 'البند'), heads.prev, heads.curr, el('span', {}, 'الوحدة'), el('span')),
       ...rows.map((row, i) => el('div', { class: 'cmp-card' },
         el('div', { class: 'cmp-grid' },
