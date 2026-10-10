@@ -50,6 +50,7 @@ function draw() {
     el('div', { class: 'ra' },
       r.canEdit ? el('a', { class: 'btn sm', href: '/?edit=' + r.id }, 'تعديل') : null,
       scope === 'inbox' ? el('a', { class: 'btn sm primary', href: '/reports/' + r.id + '.html' }, 'مراجعة') : null,
+      scope === 'mine' || me.role === 'admin' ? btn('مشاركة', { cls: 'sm ghost', onclick: async () => { const m = await import('/js/share-ui.js'); m.openShareDialog({ type: 'report', id: r.id, title: r.title, warn: r.status !== 'approved' ? 'هذا التقرير غير معتمد بعد.' : '' }); } }) : null,
       scope === 'mine' || me.role === 'admin' ? btn('نسخة', { cls: 'sm ghost', onclick: () => dup(r.id) }) : null,
       scope !== 'inbox' ? el('a', { class: 'btn sm ghost', href: '/reports/' + r.id + '.html', target: '_blank', rel: 'noopener' }, 'فتح') : null,
       me.role === 'admin' ? btn('نقل', { cls: 'sm ghost', title: 'نقل ملكية التقرير لموظف آخر', onclick: () => reassign(r) }) : null))));

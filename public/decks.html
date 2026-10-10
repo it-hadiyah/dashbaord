@@ -60,7 +60,7 @@ function draw() {
   all.forEach((d) => list.append(el('div', { class: 'ritem' },
     el('div', { class: 'rt' }, el('a', { class: 'ttl', href: '/deck.html?id=' + d.id }, d.title || 'بدون عنوان'), el('div', { class: 'rm' }, el('span', {}, d.slides + ' شريحة'), el('span', {}, d.ratio), scope === 'all' ? el('span', {}, 'المالك: ' + (d.ownerName || d.owner)) : null, el('span', {}, 'آخر تعديل: ' + fmt(d.updatedAt)))),
     el('div', { class: 'ra' }, el('a', { class: 'btn sm', href: '/deck.html?id=' + d.id }, 'تعديل'), el('a', { class: 'btn sm primary', href: '/decks/' + d.id + '.html#present', target: '_blank', rel: 'noopener' }, 'عرض'),
-      btn('نسخة', { cls: 'sm ghost', onclick: () => dup(d.id) }), btn('حذف', { cls: 'sm ghost', onclick: () => del(d) })))));
+      btn('مشاركة', { cls: 'sm ghost', onclick: async () => { const m = await import('/js/share-ui.js'); m.openShareDialog({ type: 'deck', id: d.id, title: d.title }); } }), btn('نسخة', { cls: 'sm ghost', onclick: () => dup(d.id) }), btn('حذف', { cls: 'sm ghost', onclick: () => del(d) })))));
 }
 async function dup(id) { try { const d = await (await fetch('/api/decks/' + id)).json(); delete d.id; d.title += ' (نسخة)'; await post('/api/decks', d); toast('تم إنشاء نسخة', { tone: 'ok' }); load(); } catch (e) { toast(e.message, { tone: 'err' }); } }
 async function del(d) { if (!(await confirmDialog({ title: 'حذف العرض', text: '«' + (d.title || '') + '» سيُحذف نهائياً.', ok: 'حذف', danger: true }))) return; const r = await fetch('/api/decks/' + d.id, { method: 'DELETE' }); if (r.ok) { toast('تم الحذف'); load(); } else toast('تعذر الحذف', { tone: 'err' }); }

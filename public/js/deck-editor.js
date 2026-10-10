@@ -158,6 +158,7 @@ function exportMenu(e) {
     item('صفحة ويب HTML (تنزيل)', async () => { if (await ensureSaved()) location.href = '/api/decks/' + serverId + '/export.html'; }),
     item('PowerPoint ‏(PPTX)', async () => { const m = await import('./pptx.js'); await m.exportPptx(deck(), cfg); }),
     item('صور PNG لكل الشرائح', async () => { const m = await import('./pptx.js'); await m.exportPng(deck(), cfg, cur); }),
+    item('رابط مشاركة', async () => { if (await ensureSaved()) { const m = await import('./share-ui.js'); m.openShareDialog({ type: 'deck', id: serverId, title: deck().title }); } }),
     item('تحويل إلى تقرير', async () => {
       const rep = D.toReport(deck());
       const res = await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rep) });

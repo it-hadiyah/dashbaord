@@ -359,21 +359,22 @@
 <link rel="stylesheet" href="/css/tokens.css">
 <link rel="stylesheet" href="/css/report.css">
 <link rel="stylesheet" href="/css/components.css">
+${ctx.allowPrint === false ? '<style>@media print{body{display:none}}</style>' : ''}
 </head>
 <body class="${a.cls} view" style="${a.style}" data-rid="${id}">
 <div class="viewbar noprint">
   <div class="vb-title"><strong>${escRaw(report.title || 'تقرير')}</strong><span id="pcount"></span><span id="vb-status" class="chip-status"></span></div>
   <div class="vb-actions" id="vb-actions">
-    <a class="btn" href="/list.html">تقاريري</a>
-    <button class="btn primary" onclick="window.print()">طباعة / حفظ PDF</button>
+    ${ctx.shared ? '' : '<a class="btn" href="/list.html">تقاريري</a>'}
+    ${ctx.allowPrint === false ? '' : '<button class="btn primary" onclick="window.print()">طباعة / حفظ PDF</button>'}
   </div>
 </div>
 <div id="toasts" class="toasts" aria-live="polite"></div>
 <div id="src" hidden>${r.source()}</div>
 <div id="pages" class="pages"></div>
-<script src="/js/guard.js"></script>
+${ctx.shared ? '' : '<script src="/js/guard.js"></script>'}
 <script src="/js/paginate.js"></script>
-<script type="module" src="/js/viewbar.js"></script>
+${ctx.shared ? '' : '<script type="module" src="/js/viewbar.js"></script>'}
 </body>
 </html>`;
   }

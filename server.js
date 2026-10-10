@@ -12,6 +12,7 @@ const cfgm = require('./lib/config');
 const auth = require('./lib/auth');
 const WF = require('./lib/workflow');
 const store = require('./lib/store');
+const SH = require('./lib/shares');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -249,6 +250,64 @@ function standaloneHtml(deck, id) {
   return html;
 }
 
+
+/* ---------- روابط المشاركة ---------- */
+async function canShare(user, type, id) {
+  try {
+    if (!ID_RE.test(id)) return false;
+    if (type === 'deck') return deckAccess(user, await readDeck(id)).edit;
+    if (type === 'report') { const r = await readReport(id); return user.role === 'admin' || r.owner === user.username; }
+  } catch (e) { /* غير موجود */ }
+  return false;
+}
+const unlockFails = new Map();
+const shareCookie = (tok) => 'rb_s_' + tok.slice(0, 12);
+const msgPage = (res, code, title, msg) => send(res, code, `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${R.escRaw(title)}</title><link rel="stylesheet" href="/css/tokens.css"><body style="font-family:var(--font,Tahoma);display:grid;place-items:center;min-height:100vh;margin:0;background:#eef2f5"><div style="background:#fff;padding:32px 40px;border-radius:16px;max-width:460px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.12)"><img src="/brand/logo-icon.png" width="48" alt=""><h2>${R.escRaw(title)}</h2><p>${R.escRaw(msg)}</p></div></body></html>`, MIME['.html'], { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
+const pwPage = (res, tok, err) => send(res, 200, `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>محتوى محمي</title><link rel="stylesheet" href="/css/tokens.css"><body style="font-family:var(--font,Tahoma);display:grid;place-items:center;min-height:100vh;margin:0;background:#eef2f5"><form method="post" action="/s/${tok}/unlock" style="background:#fff;padding:32px 40px;border-radius:16px;max-width:420px;width:90%;box-shadow:0 8px 30px rgba(0,0,0,.12)"><img src="/brand/logo-icon.png" width="48" alt=""><h2>محتوى محمي بكلمة مرور</h2>${err ? `<p style="color:#b3382a">${R.escRaw(err)}</p>` : ''}<input type="password" name="password" autofocus required placeholder="كلمة المرور" aria-label="كلمة المرور" style="width:100%;padding:12px;border:1px solid #cfd8e0;border-radius:10px;font:inherit;box-sizing:border-box"><button style="margin-top:14px;width:100%;padding:12px;border:0;border-radius:10px;background:#007f73;color:#fff;font:inherit;cursor:pointer">فتح</button></form></body></html>`, MIME['.html'], { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
+
+async function handleShare(req, res, p) {
+  const m = p.match(/^\/s\/([A-Za-z0-9_-]{10,64})(\/unlock)?$/);
+  const sh = m && SH.get(m[1]);
+  if (!sh || sh.revoked) return msgPage(res, 404, 'الرابط غير متاح', 'هذا الرابط غير صحيح أو تم إلغاؤه من صاحبه.');
+  if (SH.state(sh) === 'expired') return msgPage(res, 410, 'انتهت صلاحية الرابط', 'انتهت مدة هذا الرابط. اطلب من صاحبه رابطاً جديداً.');
+  const user = userOf(req), ip = clientIp(req);
+  const privileged = user && (user.role === 'admin' || user.username === sh.owner);
+  const who = user ? user.username : 'زائر';
+  if (!privileged) {
+    if (sh.mode === 'login' || sh.mode === 'users') {
+      if (!user) return redirect(res, '/login.html?next=' + encodeURIComponent(req.url));
+      if (sh.mode === 'users' && !sh.users.includes(user.username)) { SH.log(sh.token, { user: who, ip, ok: false, note: 'غير مصرّح' }); return page403(res, 'هذا الرابط مخصص لمستخدمين محددين ولست منهم.'); }
+    } else if (sh.mode === 'password') {
+      const ck = parseCookies(req)[shareCookie(sh.token)];
+      if (!SH.unlockOk(sh, ck)) {
+        if (m[2] && req.method === 'POST') {
+          if (!sameOrigin(req)) return msgPage(res, 403, 'طلب مرفوض', 'مصدر الطلب غير موثوق.');
+          const key = ip + '|' + sh.token, f = unlockFails.get(key) || { n: 0, until: 0 };
+          if (f.until > Date.now()) return pwPage(res, sh.token, 'محاولات كثيرة. حاول بعد قليل.');
+          const body = new URLSearchParams(await readBody(req, 4000));
+          if (await SH.checkPw(body.get('password'), sh.passHash)) {
+            unlockFails.delete(key); SH.log(sh.token, { user: who, ip, ok: true, note: 'فتح بكلمة المرور' });
+            res.setHeader('Set-Cookie', `${shareCookie(sh.token)}=${SH.unlockToken(sh)}; HttpOnly; SameSite=Strict; Path=/s/${sh.token}; Max-Age=${8 * 3600}${cfgm.get().auth.secureCookie ? '; Secure' : ''}`);
+            return redirect(res, '/s/' + sh.token);
+          }
+          f.n++; if (f.n >= 5) { f.until = Date.now() + 15 * 60000; f.n = 0; } unlockFails.set(key, f);
+          SH.log(sh.token, { user: who, ip, ok: false, note: 'كلمة مرور خاطئة' });
+          return pwPage(res, sh.token, 'كلمة المرور غير صحيحة');
+        }
+        return pwPage(res, sh.token, '');
+      }
+    }
+  }
+  if (m[2]) return redirect(res, '/s/' + sh.token);
+  let html;
+  try {
+    if (sh.type === 'deck') html = D.renderDeckPage(await readDeck(sh.id), { config: loadConfig(), id: sh.id, allowPrint: !sh.noPrint });
+    else { const d = await readReport(sh.id); html = R.renderPage(d, { config: loadConfig(), id: sh.id, workflow: d.workflow, shared: true, allowPrint: !sh.noPrint }); }
+  } catch (e) { return msgPage(res, 404, 'المحتوى غير متاح', 'تم حذف المحتوى المشارَك.'); }
+  SH.log(sh.token, { user: who, ip, ok: true, note: 'عرض' }); SH.view(sh);
+  return send(res, 200, html, MIME['.html'], { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
+}
+
 /* ---------- الجلسات والمصادقة ---------- */
 const parseCookies = (req) => Object.fromEntries(String(req.headers.cookie || '').split(';').map((c) => { const i = c.indexOf('='); return i < 0 ? [] : [c.slice(0, i).trim(), decodeURIComponent(c.slice(i + 1).trim())]; }).filter((x) => x.length));
 const tokenOf = (req) => parseCookies(req).rb_sid || '';
@@ -317,6 +376,33 @@ async function handleApi(req, res, url, p) {
     return json(res, 404, { error: 'غير موجود' });
   }
 
+  // --- روابط المشاركة ---
+  if (p === '/api/users-lite' && method === 'GET') return json(res, 200, auth.listUsers().filter((u) => !u.disabled && u.username !== user.username).map((u) => ({ username: u.username, name: u.name, department: u.department || '' })));
+  if (p === '/api/shares' && method === 'GET') {
+    const type = url.searchParams.get('type'), rid = url.searchParams.get('id') || '';
+    if (!(await canShare(user, type, rid))) return json(res, 403, { error: 'غير مصرّح لك' });
+    return json(res, 200, SH.listFor(type, rid).map(SH.pub));
+  }
+  if (p === '/api/shares' && method === 'POST') {
+    const b = JSON.parse(await readBody(req, 20000));
+    if (!(await canShare(user, b.type, String(b.id || '')))) return json(res, 403, { error: 'غير مصرّح لك بمشاركة هذا العنصر' });
+    try {
+      const sh = await SH.create(user, b);
+      store.audit({ action: 'share-create', by: user.username, type: sh.type, id: sh.id, mode: sh.mode });
+      return json(res, 201, SH.pub(sh));
+    } catch (e) { return json(res, 400, { error: e.message }); }
+  }
+  const shm = p.match(/^\/api\/shares\/([A-Za-z0-9_-]{10,64})(?:\/(revoke|log))?$/);
+  if (shm) {
+    const sh = SH.get(shm[1]);
+    if (!sh) return json(res, 404, { error: 'غير موجود' });
+    if (!(await canShare(user, sh.type, sh.id))) return json(res, 403, { error: 'غير مصرّح لك' });
+    if (shm[2] === 'log' && method === 'GET') return json(res, 200, SH.readLog(sh.token));
+    if (shm[2] === 'revoke' && method === 'POST') { SH.revoke(sh.token); store.audit({ action: 'share-revoke', by: user.username, type: sh.type, id: sh.id }); return json(res, 200, SH.pub(SH.get(sh.token))); }
+    if (!shm[2] && method === 'DELETE') { SH.remove(sh.token); store.audit({ action: 'share-delete', by: user.username, type: sh.type, id: sh.id }); return json(res, 200, { ok: true }); }
+    return json(res, 405, { error: 'غير مدعوم' });
+  }
+
   // --- العروض التقديمية ---
   if (p === '/api/decks' && method === 'GET') {
     const rows = await listDecks(user, url.searchParams.get('scope') || 'mine');
@@ -350,7 +436,7 @@ async function handleApi(req, res, url, p) {
     }
     if (method === 'DELETE') {
       if (!dacc.edit) return json(res, 403, { error: 'لا يمكنك حذف هذا العرض' });
-      await fs.promises.unlink(deckFile(did)); store.audit({ action: 'deck-delete', by: user.username, id: did });
+      await fs.promises.unlink(deckFile(did)); SH.removeFor('deck', did); store.audit({ action: 'deck-delete', by: user.username, id: did });
       return json(res, 200, { ok: true });
     }
     return json(res, 405, { error: 'غير مدعوم' });
@@ -434,6 +520,8 @@ const server = http.createServer(async (req, res) => {
       if (!WF.access(user, d).read) return page403(res, 'هذا التقرير ليس من تقاريرك ولم يُشارَك معك.');
       return send(res, 200, R.renderPage(d, { config: loadConfig(), id: m[1], workflow: d.workflow }), MIME['.html'], { 'Cache-Control': 'no-store' });
     }
+
+    if (p.startsWith('/s/') && (req.method === 'GET' || req.method === 'POST')) return await handleShare(req, res, p);
 
     let dv = p.match(/^\/decks\/([a-z0-9-]+)\.html$/);
     if (dv && req.method === 'GET') {

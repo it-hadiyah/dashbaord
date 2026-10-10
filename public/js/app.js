@@ -219,6 +219,7 @@ $('#b-export').onclick = (e) => {
     item('file', 'تنزيل ملف Word ‏(DOCX)', 'ملف قابل للتحرير: عناوين وجداول وصور للرسوم', async () => { try { const m = await import('./docx.js'); await m.exportDocx(store.report, P.config, fileBase(), store.workflow); toast('تم تجهيز ملف Word', { tone: 'ok' }); } catch (err) { toast('تعذر إنشاء ملف Word: ' + err.message, { tone: 'err' }); } }),
     el('hr'),
     item('download', 'نسخة البيانات (JSON)', 'للنسخ الاحتياطي، والمحتوى منفصل عن الشكل', () => { const a = el('a', { href: URL.createObjectURL(new Blob([JSON.stringify(store.report, null, 2)], { type: 'application/json' })), download: fileBase() + '.json' }); document.body.append(a); a.click(); a.remove(); }),
+    store.serverId ? item('link', 'رابط مشاركة', 'رابط بعد الدخول أو بكلمة مرور أو لمستخدمين محددين، مع انتهاء وسجل وصول', async () => { const m = await import('./share-ui.js'); m.openShareDialog({ type: 'report', id: store.serverId, title: store.report.title, warn: store.workflow && store.workflow.status !== 'approved' ? 'هذا التقرير غير معتمد بعد؛ سيرى المستلم ما هو محفوظ حالياً.' : '' }); }) : null,
     store.serverId ? item('link', 'فتح الصفحة النهائية', 'الصفحة المحفوظة على الخادم', () => window.open('/reports/' + store.serverId + '.html', '_blank')) : null);
   root.replaceChildren(menu);
   const close = (ev) => { if (!menu.contains(ev.target) && ev.target !== $('#b-export')) { root.replaceChildren(); document.removeEventListener('click', close, true); } };

@@ -39,3 +39,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--f
 .imp-map{display:grid;gap:4px;font-size:.85rem}
 .imp-warn{color:#9a5b00;margin:2px 0;font-size:.85rem}
 .imp-ok{color:#1b7a52;margin:2px 0;font-size:.85rem}
+
+/* روابط المشاركة */
+.sh{display:grid;gap:10px;min-width:min(560px,88vw)}
+.sh input[type=text],.sh input[type=search],.sh select{width:100%;padding:8px;border:1px solid var(--border,#d6dde3);border-radius:8px;font:inherit;box-sizing:border-box}
+.sh-users{max-height:160px;overflow:auto;border:1px solid var(--border,#d6dde3);border-radius:8px;padding:8px;display:grid;gap:4px}
+.sh-list{display:grid;gap:8px;margin-top:6px}
+.sh-row{display:flex;gap:10px;justify-content:space-between;align-items:center;border:1px solid var(--border,#dde3e8);border-radius:10px;padding:10px;flex-wrap:wrap}
+.sh-row.expired,.sh-row.revoked{opacity:.65}
