@@ -1,6 +1,6 @@
 // شريط إجراءات صفحة التقرير المحفوظ: الحالة، التعديل، المشاركة مع المدير، الاعتماد، السجل
 import { el, btn } from './ui.js';
-import { STATUS, shareDialog, decideDialog, simple, historyDialog } from './workflow-ui.js';
+import { STATUS, shareDialog, decideDialog, simple, historyDialog, commentsDialog, versionsDialog, call } from './workflow-ui.js';
 
 const rid = document.body.dataset.rid;
 const box = document.getElementById('vb-actions');
@@ -20,6 +20,12 @@ if (rid && box) {
     if (a.withdraw) items.push(btn('سحب من الاعتماد', { cls: 'ghost', onclick: async () => { if (await simple(rid, 'withdraw', 'سحب التقرير', 'سيعود التقرير مسودة ويمكنك تعديله ثم إرساله مجدداً.', 'سحب')) reload(); } }));
     if (a.decide) { items.push(btn('اعتماد', { cls: 'primary', onclick: async () => { if (await decideDialog(rid, 'approve')) reload(); } })); items.push(btn('إعادة للتعديل', { cls: 'ghost', onclick: async () => { if (await decideDialog(rid, 'return')) reload(); } })); }
     if (a.reopen) items.push(btn('إعادة فتح', { cls: 'ghost', onclick: async () => { if (await simple(rid, 'reopen', 'إعادة فتح التقرير', 'سيعود التقرير مسودة لصاحبه.', 'إعادة فتح')) reload(); } }));
+    let comments = d.comments || [];
+    const cbtn = btn('التعليقات (' + comments.length + ')', { cls: 'ghost', onclick: () => commentsDialog(rid, comments, (c) => { comments = c; cbtn.querySelector('span').textContent = 'التعليقات (' + c.length + ')'; }) });
+    items.push(cbtn);
+    items.push(btn('النسخ (' + (d.versionCount || 0) + ')', { cls: 'ghost', onclick: () => versionsDialog(rid, a.edit, reload) }));
+    if (a.owner || a.admin) items.push(btn('حفظ نسخة', { cls: 'ghost', onclick: async () => { try { await call(rid, 'snapshot', { label: 'نسخة يدوية' }); reload(); } catch (e) { alert(e.message); } } }));
+    if ((a.owner || a.admin) && w.status !== 'submitted') items.push(btn(d.archived ? 'إلغاء الأرشفة' : 'أرشفة', { cls: 'ghost', onclick: async () => { try { await call(rid, d.archived ? 'unarchive' : 'archive'); reload(); } catch (e) { alert(e.message); } } }));
     items.push(btn('السجل', { cls: 'ghost', onclick: () => historyDialog(d.history) }));
     box.prepend(...items);
   });

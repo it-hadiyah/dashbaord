@@ -136,11 +136,32 @@ function toReport(raw, id) {
   const d = T.migrate(raw);
   d.id = id; d.owner = raw.owner || ''; d.ownerName = raw.ownerName || '';
   d.workflow = raw.workflow || { status: 'draft' }; d.history = raw.history || [];
+  d.comments = raw.comments || []; d.versions = raw.versions || []; d.archived = !!raw.archived;
   d.createdAt = raw.createdAt; d.updatedAt = raw.updatedAt;
   return d;
 }
 async function readReport(id) { return toReport(JSON.parse(await fs.promises.readFile(fileOf(id), 'utf8')), id); }
 
+
+const META_KEYS = ['title', 'subtitle', 'period', 'employee', 'department', 'date', 'palette', 'template'];
+function addSnapshot(rep, user, label) {
+  const v = rep.versions || (rep.versions = []);
+  const n = (v.length ? Math.max(...v.map((x) => x.n)) : 0) + 1;
+  v.push({ n, at: new Date().toISOString(), by: user.username, byName: user.name, label: String(label || 'نسخة').slice(0, 80), status: WF.wf(rep).status, content: clean(rep) });
+  while (v.length > 12) { const i = v.findIndex((x) => x.label !== 'النسخة المعتمدة'); v.splice(i < 0 ? 0 : i, 1); }
+}
+function diffReports(oldC, newC) {
+  const meta = META_KEYS.filter((k) => String(oldC[k] || '') !== String(newC[k] || ''));
+  const om = new Map((oldC.sections || []).map((x) => [x.id, x])), seen = new Set(), sections = [];
+  (newC.sections || []).forEach((x) => {
+    seen.add(x.id); const o = om.get(x.id);
+    if (!o) sections.push({ id: x.id, title: x.title, type: x.type, change: 'added' });
+    else if (JSON.stringify([o.title, o.visible, o.content, o.source, o.asOf]) !== JSON.stringify([x.title, x.visible, x.content, x.source, x.asOf])) sections.push({ id: x.id, title: x.title, type: x.type, change: 'changed', titleChanged: o.title !== x.title, oldTitle: o.title });
+  });
+  (oldC.sections || []).forEach((o) => { if (!seen.has(o.id)) sections.push({ id: o.id, title: o.title, type: o.type, change: 'removed' }); });
+  return { meta, sections, same: !meta.length && !sections.length };
+}
+const keepMeta = (r) => ({ comments: r.comments || [], versions: r.versions || [], archived: !!r.archived });
 async function writeReport(id, content, meta) {
   const d = Object.assign(clean(content), meta, { id });
   const tmp = fileOf(id) + '.tmp';
@@ -163,7 +184,7 @@ async function listAll() {
       if (!c || c.m !== st.mtimeMs) {
         const raw = JSON.parse(await fs.promises.readFile(path.join(REPORTS_DIR, f), 'utf8'));
         const d = T.migrate(raw), w = WF.wf(raw);
-        c = { m: st.mtimeMs, v: { id, title: d.title, template: d.template, templateName: raw.version === 2 ? T.byId(d.template).name : raw.type || '', employee: d.employee, department: d.department, date: d.date, createdAt: raw.createdAt || '', updatedAt: raw.updatedAt || raw.createdAt || '', owner: raw.owner || '', ownerName: raw.ownerName || '', workflow: w, _raw: { owner: raw.owner || '', workflow: raw.workflow || { status: 'draft' } } } };
+        c = { m: st.mtimeMs, v: { id, title: d.title, template: d.template, templateName: raw.version === 2 ? T.byId(d.template).name : raw.type || '', employee: d.employee, department: d.department, date: d.date, createdAt: raw.createdAt || '', updatedAt: raw.updatedAt || raw.createdAt || '', owner: raw.owner || '', ownerName: raw.ownerName || '', archived: !!raw.archived, comments: (raw.comments || []).length, workflow: w, _raw: { owner: raw.owner || '', workflow: raw.workflow || { status: 'draft' } } } };
         indexCache.set(id, c);
       }
       out.push(c.v);
@@ -181,7 +202,8 @@ async function listFor(user, scope) {
   let rows;
   if (scope === 'all') { if (user.role !== 'admin') return null; rows = all; }
   else if (scope === 'inbox') rows = all.filter((v) => v.workflow.status !== 'draft' && (v.workflow.sharedWith === user.username || (user.role === 'admin' && v.workflow.status === 'submitted')));
-  else rows = all.filter((v) => v.owner === user.username);
+  else if (scope === 'archive') rows = all.filter((v) => v.owner === user.username && v.archived);
+  else rows = all.filter((v) => v.owner === user.username && !v.archived);
   return rows.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))).map((v) => summary(user, v));
 }
 async function inboxCount(user) {
@@ -474,21 +496,28 @@ async function handleApi(req, res, url, p) {
     store.audit({ action: 'report-create', by: user.username, id });
     return json(res, 201, { id, url: '/reports/' + id + '.html' });
   }
-  const m = p.match(/^\/api\/reports\/([a-z0-9-]+)(?:\/(share|withdraw|approve|return|reopen|owner))?$/);
+  const m = p.match(/^\/api\/reports\/([a-z0-9-]+)(?:\/(share|withdraw|approve|return|reopen|owner|comment|archive|unarchive|snapshot|restore|versions)(?:\/(\d+))?)?$/);
   if (!m || !ID_RE.test(m[1])) return json(res, 404, { error: 'غير موجود' });
   const id = m[1], act = m[2];
   const rep = await readReport(id);                       // يرمي ENOENT → 404
   const acc = WF.access(user, rep);
   if (!acc.read) return json(res, 403, { error: 'غير مصرّح لك بهذا التقرير' });
 
-  if (!act && method === 'GET') return json(res, 200, Object.assign({}, rep, { access: acc, statusLabel: WF.STATUS[WF.wf(rep).status] }));
+  if (!act && method === 'GET') { const { versions, ...rest } = rep; return json(res, 200, Object.assign({}, rest, { versionCount: (versions || []).length, access: acc, statusLabel: WF.STATUS[WF.wf(rep).status] })); }
+  if (act === 'versions' && method === 'GET') {
+    if (m[3]) {
+      const v = (rep.versions || []).find((x) => x.n === +m[3]); if (!v) return json(res, 404, { error: 'النسخة غير موجودة' });
+      return json(res, 200, { n: v.n, at: v.at, byName: v.byName, label: v.label, status: v.status, title: v.content.title, diff: diffReports(v.content, clean(rep)) });
+    }
+    return json(res, 200, (rep.versions || []).map((v) => ({ n: v.n, at: v.at, byName: v.byName, label: v.label, status: v.status, sections: (v.content.sections || []).length })).reverse());
+  }
   if (!act && method === 'PUT') {
     if (!acc.edit) return json(res, 403, { error: WF.wf(rep).status === 'approved' ? 'التقرير معتمد ولا يمكن تعديله' : WF.wf(rep).status === 'submitted' ? 'التقرير بانتظار الاعتماد. اسحبه أولاً لتعديله' : 'غير مصرّح لك بالتعديل' });
     const data = JSON.parse(await readBody(req));
     if (!str(data.title).trim()) return json(res, 400, { error: 'عنوان التقرير مطلوب' });
     const nt = clean(data).template;
     if (nt !== rep.template && !auth.canUseTemplate(user, nt)) return json(res, 403, { error: 'نوع القالب المختار غير مسموح لحسابك' });
-    await writeReport(id, data, { owner: rep.owner, ownerName: rep.ownerName, workflow: rep.workflow, history: rep.history, createdAt: rep.createdAt, updatedAt: new Date().toISOString() });
+    await writeReport(id, data, Object.assign({ owner: rep.owner, ownerName: rep.ownerName, workflow: rep.workflow, history: rep.history, createdAt: rep.createdAt, updatedAt: new Date().toISOString() }, keepMeta(rep)));
     store.audit({ action: 'report-update', by: user.username, id });
     return json(res, 200, { id, url: '/reports/' + id + '.html' });
   }
@@ -508,15 +537,31 @@ async function handleApi(req, res, url, p) {
       else if (act === 'approve') { if (!acc.decide) throw deny('غير مصرّح لك بالاعتماد'); WF.actions.approve(rep, user, body); }
       else if (act === 'return') { if (!acc.decide) throw deny('غير مصرّح لك بالإعادة'); WF.actions.return(rep, user, body); }
       else if (act === 'reopen') { if (!acc.reopen) throw deny('غير متاح'); WF.actions.reopen(rep, user); }
+      else if (act === 'comment') {
+        const text = String(body.text || '').trim().slice(0, 1000); if (!text) throw new Error('اكتب التعليق أولاً');
+        rep.comments = (rep.comments || []).concat([{ id: crypto.randomBytes(4).toString('hex'), at: new Date().toISOString(), by: user.username, byName: user.name, text }]).slice(-300);
+      } else if (act === 'archive' || act === 'unarchive') {
+        if (!(acc.owner || acc.admin)) throw deny('للمالك أو المسؤول فقط');
+        if (act === 'archive' && WF.wf(rep).status === 'submitted') throw new Error('لا يمكن أرشفة تقرير بانتظار الاعتماد');
+        rep.archived = act === 'archive'; WF.push(rep, user, act);
+      } else if (act === 'snapshot') {
+        if (!(acc.owner || acc.admin)) throw deny('للمالك أو المسؤول فقط');
+        addSnapshot(rep, user, body.label || 'نسخة يدوية'); WF.push(rep, user, 'snapshot', body.label);
+      } else if (act === 'restore') {
+        if (!acc.edit) throw deny('لا يمكنك تعديل هذا التقرير');
+        const v = (rep.versions || []).find((x) => x.n === +body.n); if (!v) throw new Error('النسخة غير موجودة');
+        addSnapshot(rep, user, 'قبل الاستعادة'); Object.assign(rep, JSON.parse(JSON.stringify(v.content)), { id }); WF.push(rep, user, 'restore', 'النسخة ' + v.n);
+      }
       else if (act === 'owner') {
         if (!acc.reassign) throw deny('للمسؤول فقط');
         const nu = auth.find(body.username); if (!nu) throw new Error('المستخدم غير موجود');
         rep.owner = nu.username; rep.ownerName = nu.name; WF.push(rep, user, 'reassign', 'إلى ' + nu.name);
       }
+      if (['share', 'approve', 'return'].includes(act)) addSnapshot(rep, user, { share: 'مُرسلة للاعتماد', approve: 'النسخة المعتمدة', return: 'قبل الإعادة للتعديل' }[act]);
     } catch (e) { return json(res, e.status || 400, { error: e.message }); }
-    await writeReport(id, rep, { owner: rep.owner, ownerName: rep.ownerName, workflow: rep.workflow, history: rep.history, createdAt: rep.createdAt, updatedAt: new Date().toISOString() });
+    await writeReport(id, rep, Object.assign({ owner: rep.owner, ownerName: rep.ownerName, workflow: rep.workflow, history: rep.history, createdAt: rep.createdAt, updatedAt: new Date().toISOString() }, keepMeta(rep)));
     store.audit({ action: 'report-' + act, by: user.username, id, to: rep.workflow && rep.workflow.sharedWith });
-    return json(res, 200, { ok: true, workflow: rep.workflow });
+    return json(res, 200, { ok: true, workflow: rep.workflow, comments: rep.comments, archived: !!rep.archived });
   }
   return json(res, 405, { error: 'غير مدعوم' });
 }

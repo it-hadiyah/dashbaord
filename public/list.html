@@ -82,7 +82,7 @@ async function load() {
   me = await (await fetch('/api/me')).json();
   mountUserChip(document.getElementById('user-chip'), me);
   if (me.role === 'admin') document.getElementById('admin-link').hidden = false;
-  const tabs = [['mine', 'تقاريري']];
+  const tabs = [['mine', 'تقاريري'], ['archive', 'الأرشيف']];
   if (me.role !== 'employee') tabs.push(['inbox', 'بانتظار اعتمادي' + (me.inbox ? ` (${me.inbox})` : '')]);
   if (me.role === 'admin') tabs.push(['all', 'كل التقارير']);
   const box = document.getElementById('tabs');

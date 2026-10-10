@@ -2,7 +2,7 @@
 import { el, btn, modal, toast } from './ui.js';
 
 export const STATUS = { draft: 'مسودة', submitted: 'بانتظار الاعتماد', approved: 'معتمد', returned: 'معاد للتعديل' };
-const ACTIONS = { create: 'إنشاء التقرير', share: 'إرسال للاعتماد', withdraw: 'سحب من الاعتماد', approve: 'اعتماد', return: 'إعادة للتعديل', reopen: 'إعادة فتح', reassign: 'نقل الملكية' };
+const ACTIONS = { create: 'إنشاء التقرير', share: 'إرسال للاعتماد', withdraw: 'سحب من الاعتماد', approve: 'اعتماد', return: 'إعادة للتعديل', reopen: 'إعادة فتح', reassign: 'نقل الملكية', archive: 'أرشفة', unarchive: 'إلغاء الأرشفة', snapshot: 'حفظ نسخة', restore: 'استعادة نسخة' };
 
 export async function call(id, act, body) {
   const res = await fetch('/api/reports/' + encodeURIComponent(id) + '/' + act, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
@@ -53,4 +53,39 @@ export async function simple(reportId, act, title, text, ok) {
 export function historyDialog(history) {
   const rows = (history || []).slice().reverse().map((h) => el('li', { style: 'padding:8px 0;border-bottom:1px solid var(--border)' }, el('b', {}, ACTIONS[h.action] || h.action), ' · ', h.byName || h.by, el('small', { class: 'muted', style: 'display:block' }, (h.at || '').replace('T', ' ').slice(0, 16) + (h.note ? ' — ' + h.note : ''))));
   modal('سجل التقرير', el('ul', { style: 'list-style:none;margin:0;padding:0;max-height:55vh;overflow:auto' }, rows.length ? rows : el('li', { class: 'muted' }, 'لا يوجد سجل.')));
+}
+
+const fmtT = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleString('ar-SA-u-ca-gregory', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+const jget = async (u) => { const r = await fetch(u); const o = await r.json().catch(() => ({})); if (!r.ok) throw new Error(o.error || 'تعذر التنفيذ'); return o; };
+
+/* التعليقات: أي شخص يملك صلاحية قراءة التقرير */
+export function commentsDialog(reportId, comments, onChange) {
+  const list = el('div', { style: 'display:grid;gap:8px;max-height:45vh;overflow:auto;margin-bottom:10px' });
+  const draw = (rows) => list.replaceChildren(...(rows.length ? rows.map((c) => el('div', { style: 'border:1px solid var(--border);border-radius:10px;padding:8px 12px' }, el('b', {}, c.byName || c.by), el('small', { class: 'muted', style: 'margin-inline-start:8px' }, fmtT(c.at)), el('p', { style: 'margin:4px 0 0;white-space:pre-wrap' }, c.text))) : [el('p', { class: 'muted' }, 'لا توجد تعليقات بعد.')]));
+  draw(comments || []);
+  const ta = el('textarea', { rows: 3, placeholder: 'اكتب تعليقاً أو ملاحظة…', 'aria-label': 'تعليق جديد', style: 'width:100%' });
+  const send = btn('إضافة تعليق', { cls: 'primary', onclick: async () => {
+    try { const o = await call(reportId, 'comment', { text: ta.value }); ta.value = ''; draw(o.comments || []); if (onChange) onChange(o.comments || []); } catch (e) { toast(e.message, { tone: 'err' }); }
+  } });
+  modal('التعليقات', el('div', {}, list, ta, el('div', { class: 'dlg-actions' }, send)));
+}
+
+/* النسخ: عرض الفروق عن الحالي واستعادة نسخة */
+export async function versionsDialog(reportId, canRestore, onRestored) {
+  const box = el('div', { style: 'display:grid;gap:8px;max-height:55vh;overflow:auto' });
+  const CH = { added: 'أُضيف', changed: 'تغيّر', removed: 'حُذف' };
+  const META = { title: 'العنوان', subtitle: 'العنوان الفرعي', period: 'الفترة', employee: 'المُعِدّ', department: 'الإدارة', date: 'التاريخ', palette: 'الألوان', template: 'القالب' };
+  async function show(v) {
+    try {
+      const d = (await jget('/api/reports/' + reportId + '/versions/' + v.n)).diff;
+      const items = [...d.meta.map((k) => 'تغيّر: ' + META[k]), ...d.sections.map((x) => CH[x.change] + ': ' + (x.title || x.type))];
+      modal('الفروق بين النسخة ' + v.n + ' والحالي', el('div', {}, d.same ? el('p', {}, 'لا توجد فروق: النسخة مطابقة للحالي.') : el('ul', {}, items.map((t) => el('li', {}, t)))));
+    } catch (e) { toast(e.message, { tone: 'err' }); }
+  }
+  let rows = []; try { rows = await jget('/api/reports/' + reportId + '/versions'); } catch (e) { toast(e.message, { tone: 'err' }); return; }
+  const m = modal('نسخ التقرير', el('div', {}, el('p', { class: 'muted' }, 'تُحفظ نسخة تلقائياً عند الإرسال للاعتماد وعند الاعتماد وعند الإعادة. النسخة المعتمدة لا تُحذف تلقائياً.'),
+    box, el('div', { class: 'dlg-actions' }, btn('إغلاق', { cls: 'ghost', onclick: () => m.close() }))));
+  box.replaceChildren(...(rows.length ? rows.map((v) => el('div', { style: 'border:1px solid var(--border);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap' },
+    el('div', {}, el('b', {}, 'النسخة ' + v.n + ' — ' + v.label), el('div', { class: 'muted', style: 'font-size:13px' }, fmtT(v.at) + ' · ' + (v.byName || '') + ' · ' + (STATUS[v.status] || '') + ' · ' + v.sections + ' قسم')),
+    el('div', { class: 'ra' }, btn('الفروق', { cls: 'sm ghost', onclick: () => show(v) }), canRestore ? btn('استعادة', { cls: 'sm', onclick: async () => { try { await call(reportId, 'restore', { n: v.n }); m.close(); toast('تمت استعادة النسخة', { tone: 'ok' }); if (onRestored) onRestored(); } catch (e) { toast(e.message, { tone: 'err' }); } } }) : null))) : [el('p', { class: 'muted' }, 'لا توجد نسخ بعد.')]));
 }
