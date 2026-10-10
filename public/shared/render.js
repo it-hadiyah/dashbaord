@@ -179,6 +179,15 @@
     }
   }
 
+  // ربط الرسم بمؤشر مركزي: تُستبدل البيانات بآخر قيم المؤشر عند التصيير
+  function applyRef(s, map) {
+    const ref = s && s.type === 'chart' && s.content && s.content.ref;
+    const ind = ref && map && map[ref];
+    if (!ind) return s;
+    return Object.assign({}, s, { source: s.source || ind.source, asOf: s.asOf || ind.asOf, content: Object.assign({}, s.content, { unit: s.content.unit || ind.unit, data: ind.series.map((p) => ({ label: p.label, value: p.value })) }) });
+  }
+  const applyRefs = (report, map) => (map ? Object.assign({}, report, { sections: (report.sections || []).map((x) => applyRef(x, map)) }) : report);
+
   const isoOk = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !isNaN(Date.parse(s));
   const SAFE_IMG = /^(?:data:image\/(?:png|jpe?g|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+|\/brand\/icons\/(?:hex|plain)\/[a-z0-9-]{1,40}\.svg)$/;
   const SLUG = /^[a-z0-9-]{1,40}$/;
@@ -282,6 +291,7 @@
     }
 
     function section(s, i) {
+      s = applyRef(s, ctx.indicators);
       if (s.visible === false) return '';
       if (s.type === 'pagebreak') return `<div class="blk pb" data-sid="${escRaw(s.id)}"></div>`;
       const empty = isEmptySection(s);
@@ -385,5 +395,5 @@ ${ctx.shared ? '' : '<script type="module" src="/js/viewbar.js"></script>'}
 </html>`;
   }
 
-  return { compareSvg, sanitize, plain, chartSvg, isEmptySection, makeRenderer, renderSource, renderPage, escRaw, num, fmt, SAFE_IMG, SLUG };
+  return { applyRef, applyRefs, compareSvg, sanitize, plain, chartSvg, isEmptySection, makeRenderer, renderSource, renderPage, escRaw, num, fmt, SAFE_IMG, SLUG };
 });

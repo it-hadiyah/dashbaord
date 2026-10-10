@@ -36,7 +36,7 @@
     const dark = bg === 'brand' || bg === 'dark';
     const logo = r.logoHtml('s-logo', { light: dark });
     const pat = r.patternHtml('s-pattern', true);
-    const block = blockOf(deck, slide);
+    const block = R.applyRef(blockOf(deck, slide), ctx.indicators);
     const idx = ctx.index || 0, total = ctx.total || 0;
     const foot = deck.options && deck.options.pageNumbers === false ? '' : `<div class="s-foot"><span>${E(deck.options && deck.options.footerText || cfg.orgName || '')}</span><span class="s-pg">شريحة <bdi>${E(String(idx + 1))}</bdi> من <bdi>${E(String(total || ''))}</bdi></span></div>`;
     const sample = deck.sample ? '<div class="s-ribbon">بيانات تجريبية</div>' : '';

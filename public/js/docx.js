@@ -2,6 +2,7 @@
 // بدون مكتبات: يُبنى ملف ZIP يدوياً (بدون ضغط) وفق مواصفة Office Open XML.
 import * as T from './templates.js';
 
+import { getIndicatorMap } from './indicators-cache.js';
 const RBR = window.RBR;
 const FONT = 'Arial'; // خط متوفر في Word على كل الأجهزة ويدعم العربية
 const PAGE_W = 11906, PAGE_H = 16838, MARGIN = 1134, CONTENT_W = PAGE_W - 2 * MARGIN;
@@ -245,6 +246,7 @@ async function imageXml(ctx, c) {
 
 /* ---------- بناء المستند ---------- */
 export async function exportDocx(report, config, fileName, workflow) {
+  report = RBR.applyRefs(report, getIndicatorMap());
   const ctx = makeCtx(report), o = report.options || {}, tpl = T.byId(report.template);
   const body = [];
   const h1 = (t) => para(run(ctx, t, { size: 15, b: true, color: ctx.d }), { style: 'Heading1', keep: true, before: 200, after: 100, line: 300 });

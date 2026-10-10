@@ -1,10 +1,11 @@
 // محررات الأقسام: لكل نوع قسم واجهة تعبئة مناسبة له
 import { el, btn, iconBtn, toast, confirmDialog } from './ui.js';
 import { icon } from './icons.js';
-import { edit, store } from './store.js';
+import { edit, store, emit } from './store.js';
 import * as T from './templates.js';
 import { iconButton, pickIcon, iconSrc } from './iconpicker.js';
 import { importButton } from './importer.js';
+import { getIndicators, getIndicatorMap } from './indicators-cache.js';
 let aiSt = null;
 const aiStatus = () => (aiSt || (aiSt = fetch('/api/ai/status').then((r) => (r.ok ? r.json() : { enabled: false })).catch(() => ({ enabled: false }))));
 
@@ -162,9 +163,16 @@ function kpiEditor(s) {
 
 const KINDS = [['bar', 'أعمدة'], ['line', 'خط'], ['area', 'مساحة'], ['donut', 'حلقة'], ['pie', 'دائرة'], ['hbar', 'أفقي'], ['waterfall', 'شلال'], ['gauge', 'مقياس'], ['radar', 'رادار'], ['funnel', 'قمع']];
 const KIND_TIPS = { waterfall: 'الشلال: أول صف = الرصيد الافتتاحي، والصفوف التالية قيم التغيّر (موجبة أو سالبة بعلامة -)، ويُضاف عمود «الإجمالي» تلقائياً.', gauge: 'المقياس: يستخدم أول صف فقط (القيمة)، وحدد القيمة القصوى بالأسفل.', radar: 'الرادار: أدخل 3 محاور أو أكثر بنفس المقياس.', funnel: 'القمع: رتّب المراحل من الأكبر إلى الأصغر (مثل: المتقدمون ← المقبولون ← المستفيدون).', pie: 'الدائرة: تُحسب النسبة تلقائياً من مجموع القيم.' };
+function indicatorLink(s) {
+  const list = getIndicators(), linked = s.content.ref && getIndicatorMap()[s.content.ref];
+  if (linked) return el('div', { class: 'hint', role: 'note' }, el('span', {}, 'مرتبط بالمؤشر المركزي «' + linked.name + '»: تتحدّث الأرقام تلقائياً عند تعديل المؤشر. '), btn('فك الربط', { cls: 'sm ghost', onclick: () => { upd(s.id, null, (x) => { x.content.data = linked.series.map((p) => ({ label: p.label, value: p.value })); x.content.ref = ''; }, 'structure'); emit('select'); } }));
+  if (!list.length) return null;
+  return field('ربط بمؤشر مركزي (اختياري)', el('select', { 'aria-label': 'مؤشر مركزي', onchange: (e) => { const ind = list.find((i) => i.id === e.target.value); if (!ind) return; upd(s.id, null, (x) => { x.content.ref = ind.id; x.content.data = ind.series.map((p) => ({ label: p.label, value: p.value })); if (!x.content.unit) x.content.unit = ind.unit; if (!x.source) x.source = ind.source; if (!x.asOf) x.asOf = ind.asOf; }, 'structure'); emit('select'); } }, el('option', { value: '' }, 'بدون ربط'), list.map((i) => el('option', { value: i.id }, i.name + (i.unit ? ' (' + i.unit + ')' : '')))), 'القيم تُقرأ من «مركز المؤشرات» وتتحدّث في كل التقارير والعروض المرتبطة.');
+}
 function chartEditor(s) {
-  return el('div', {}, el('div', { class: 'btns' }, importButton(s)), field('نوع الرسم', segmented(KINDS, s.content.kind, (v) => upd(s.id, null, (x) => { x.content.kind = v; }), 'نوع الرسم')),
-    rows(s, { get: (x) => x.content.data, make: () => ({ label: '', value: '' }), addLabel: 'إضافة نقطة', min: 1,
+  const linked = s.content.ref && getIndicatorMap()[s.content.ref];
+  return el('div', {}, indicatorLink(s), linked ? null : el('div', { class: 'btns' }, importButton(s)), field('نوع الرسم', segmented(KINDS, s.content.kind, (v) => upd(s.id, null, (x) => { x.content.kind = v; }), 'نوع الرسم')),
+    linked ? null : rows(s, { get: (x) => x.content.data, make: () => ({ label: '', value: '' }), addLabel: 'إضافة نقطة', min: 1,
       cols: [{ key: 'label', label: 'التسمية', ph: 'يناير', w: '1.5fr' }, { key: 'value', label: 'القيمة (رقم)', ph: '120', w: '1fr', inputmode: 'decimal' }] }),
     s.content.kind === 'gauge' ? field('القيمة القصوى للمقياس', textInput(s.content.max || '100', (v) => upd(s.id, 'mx', (x) => { x.content.max = v; }), { ph: '100', inputmode: 'decimal' })) : null,
     field('الوحدة (اختياري)', textInput(s.content.unit, (v) => upd(s.id, 'u', (x) => { x.content.unit = v; }), { ph: 'مثال: %' })),

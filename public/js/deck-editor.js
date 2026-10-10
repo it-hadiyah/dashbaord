@@ -3,6 +3,7 @@ import { el, btn, toast, confirmDialog, modal } from './ui.js';
 import { store, load, edit, on, undo, redo, canUndo, canRedo } from './store.js';
 import { sectionEditor, field, textInput, segmented } from './editors.js';
 import { mountUserChip } from './userchip.js';
+import { loadIndicators, getIndicatorMap } from './indicators-cache.js';
 
 const D = window.RBD, T = window.RBT;
 const $ = (id) => document.getElementById(id);
@@ -14,7 +15,7 @@ const curSlide = () => deck().slides[cur];
 const BLOCK_NAMES = { kpi: 'مؤشرات رئيسية', chart: 'رسم بياني', table: 'جدول', compare: 'مقارنة بين فترتين', calc: 'عملية حسابية', progress: 'نسب إنجاز', timeline: 'خط زمني', gantt: 'مخطط جانت', image: 'صورة', callout: 'ملاحظة', list: 'قائمة', text: 'نص' };
 
 /* ---------- العرض ---------- */
-function slideHtml(i) { const d = deck(); return D.renderSlide(d, d.slides[i], { config: cfg, preview: true, index: i, total: d.slides.length }); }
+function slideHtml(i) { const d = deck(); return D.renderSlide(d, d.slides[i], { config: cfg, preview: true, index: i, total: d.slides.length, indicators: getIndicatorMap() }); }
 
 function renderStage() {
   const d = deck(), rt = D.RATIOS[d.ratio] || D.RATIOS['16:9'], host = $('dk-canvas');
@@ -199,7 +200,7 @@ addEventListener('beforeunload', (e) => { if (store.dirty) { e.preventDefault();
 (async () => {
   const me = await (await fetch('/api/me')).json();
   store.user = me.username; mountUserChip($('user-chip'), me);
-  cfg = await (await fetch('/api/config')).json();
+  cfg = await (await fetch('/api/config')).json(); await loadIndicators();
   serverId = new URLSearchParams(location.search).get('id');
   if (!serverId) { location.href = '/decks.html'; return; }
   const res = await fetch('/api/decks/' + serverId);

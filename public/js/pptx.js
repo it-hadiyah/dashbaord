@@ -1,6 +1,7 @@
 // تصدير العرض إلى PowerPoint (PPTX) بعناصر أصلية قابلة للتعديل (نصوص، جداول، أشكال)، وإلى صور PNG
 // ملاحظة: الرسوم البيانية تُدرَج كصور عالية الدقة لأن الرسوم الأصلية تتطلب مصنّفات Excel مضمَّنة.
 import { zip, chartCss, loadImg, toPng } from './docx.js';
+import { getIndicatorMap } from './indicators-cache.js';
 
 const RBR = window.RBR, RBC = window.RBC, RBD = window.RBD, RBT = window.RBT;
 const X = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
@@ -167,7 +168,7 @@ async function slideXml(c, deck, s, i, total, logos, geo) {
     shapes.push(box(c, { x: 60, y: 70, w: sw - 64 - 28 - 60, h: 62, anchor: 'ctr', text: P(c, s.title, { sz: 34, b: true, color: fg }), name: 'العنوان' }));
     let y0 = 150;
     if (s.subtitle) { shapes.push(box(c, { x: 60, y: 128, w: sw - 120, h: 36, text: P(c, s.subtitle, { sz: 18, color: dark ? 'CDE7E3' : '5B6B7A' }) })); y0 = 175; }
-    const bl = (s.bullets || []).filter((b) => String(b).trim()), blk = RBD.blockOf(deck, s), hasBlk = blk && !RBR.isEmptySection(blk);
+    const bl = (s.bullets || []).filter((b) => String(b).trim()), blk = RBR.applyRef(RBD.blockOf(deck, s), getIndicatorMap()), hasBlk = blk && !RBR.isEmptySection(blk);
     const H = sh - y0 - 56;
     if (bl.length) {
       const bw = hasBlk ? (sw - 120) * 0.38 : sw - 120, size = bl.length > 6 || hasBlk ? 22 : 26;
@@ -240,7 +241,7 @@ async function inlineCss() {
 }
 export async function slidePng(deck, cfg, i, scale = 2) {
   const rt = RBD.RATIOS[deck.ratio] || RBD.RATIOS['16:9'];
-  let html = RBD.renderSlide(deck, deck.slides[i], { config: cfg, index: i, total: deck.slides.length });
+  let html = RBD.renderSlide(deck, deck.slides[i], { config: cfg, index: i, total: deck.slides.length, indicators: getIndicatorMap() });
   const srcs = Array.from(new Set(Array.from(html.matchAll(/src="(\/brand\/[^"]+)"/g)).map((m) => m[1])));
   for (const u of srcs) { try { html = html.split(`src="${u}"`).join(`src="${await toDataUrl(u)}"`); } catch (e) { /* ignore */ } }
   const css = await inlineCss();

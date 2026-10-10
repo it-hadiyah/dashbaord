@@ -14,6 +14,7 @@ const WF = require('./lib/workflow');
 const store = require('./lib/store');
 const SH = require('./lib/shares');
 const AI = require('./lib/ai');
+const IND = require('./lib/indicators');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -48,7 +49,7 @@ function cleanContent(type, c) {
     };
     case 'kpi': return { style: c.style === 'highlights' ? 'highlights' : 'cards', items: arr(c.items, 24).map((k) => ({ icon: slug(k && k.icon), label: str(k && k.label, 200), value: str(k && k.value, 100), trend: str(k && k.trend, 30) })) };
     case 'chart': return {
-      kind: ['bar', 'line', 'area', 'donut', 'pie', 'hbar', 'waterfall', 'gauge', 'radar', 'funnel'].includes(c.kind) ? c.kind : 'bar', unit: str(c.unit, 20), max: str(c.max, 20),
+      kind: ['bar', 'line', 'area', 'donut', 'pie', 'hbar', 'waterfall', 'gauge', 'radar', 'funnel'].includes(c.kind) ? c.kind : 'bar', unit: str(c.unit, 20), max: str(c.max, 20), ref: /^ind-[a-z0-9]{4,20}$/.test(String(c.ref || '')) ? c.ref : '',
       data: arr(c.data, 60).map((d) => ({ label: str(d && d.label, 200), value: str(d && d.value, 50) })),
     };
     case 'progress': return { items: arr(c.items, 30).map((i) => ({ label: str(i && i.label, 200), value: str(i && i.value, 20) })) };
@@ -267,7 +268,7 @@ function standaloneHtml(deck, id) {
     css = css.replace(/url\(["']?(\/fonts\/[^"')]+)["']?\)/g, (m, u) => `url(${data(u) || u})`);
     inlineAssets = { css, js: rd('js/deck-present.js') };
   }
-  let html = D.renderDeckPage(deck, { config: loadConfig(), id, inlineCss: inlineAssets.css, allowPrint: true });
+  let html = D.renderDeckPage(deck, { config: loadConfig(), id, inlineCss: inlineAssets.css, allowPrint: true, indicators: IND.map() });
   html = html.replace(/<script src="\/js\/deck-present\.js"><\/script>/, () => `<script>${inlineAssets.js}</script>`);
   html = html.replace(/(src|href)="(\/brand\/[^"]+)"/g, (m, a, u) => { const d = data(u); return d ? `${a}="${d}"` : m; });
   return html;
@@ -325,8 +326,8 @@ async function handleShare(req, res, p) {
   if (m[2]) return redirect(res, '/s/' + sh.token);
   let html;
   try {
-    if (sh.type === 'deck') html = D.renderDeckPage(await readDeck(sh.id), { config: loadConfig(), id: sh.id, allowPrint: !sh.noPrint });
-    else { const d = await readReport(sh.id); html = R.renderPage(d, { config: loadConfig(), id: sh.id, workflow: d.workflow, shared: true, allowPrint: !sh.noPrint }); }
+    if (sh.type === 'deck') html = D.renderDeckPage(await readDeck(sh.id), { config: loadConfig(), id: sh.id, allowPrint: !sh.noPrint, indicators: IND.map() });
+    else { const d = await readReport(sh.id); html = R.renderPage(d, { config: loadConfig(), id: sh.id, workflow: d.workflow, shared: true, allowPrint: !sh.noPrint, indicators: IND.map() }); }
   } catch (e) { return msgPage(res, 404, 'المحتوى غير متاح', 'تم حذف المحتوى المشارَك.'); }
   SH.log(sh.token, { user: who, ip, ok: true, note: 'عرض' }); SH.view(sh);
   return send(res, 200, html, MIME['.html'], { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
@@ -342,7 +343,7 @@ const sameOrigin = (req) => { const o = req.headers.origin; if (!o) return true;
 const deny = (msg) => Object.assign(new Error(msg), { status: 403 });
 const redirect = (res, to) => { res.writeHead(302, { Location: to, 'Cache-Control': 'no-store' }); res.end(); };
 const page403 = (res, msg) => send(res, 403, `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>غير مصرّح</title><link rel="stylesheet" href="/css/tokens.css"><body style="font-family:var(--font);display:grid;place-items:center;min-height:100vh;margin:0;background:#f3f5f8"><div style="text-align:center;background:#fff;padding:40px 48px;border-radius:16px;box-shadow:0 4px 24px #0002"><h1 style="margin:0 0 8px">غير مصرّح</h1><p style="color:#647385">${msg}</p><p><a href="/">العودة للرئيسية</a></p></div></body></html>`, MIME['.html']);
-const PROTECTED_PAGES = new Set(['/', '/index.html', '/list.html', '/admin.html', '/decks.html', '/deck.html', '/dashboard.html']);
+const PROTECTED_PAGES = new Set(['/', '/index.html', '/list.html', '/admin.html', '/decks.html', '/deck.html', '/dashboard.html', '/indicators.html']);
 
 async function handleApi(req, res, url, p) {
   const method = req.method;
@@ -398,6 +399,22 @@ async function handleApi(req, res, url, p) {
       }
     } catch (e) { return json(res, 400, { error: e.message }); }
     return json(res, 404, { error: 'غير موجود' });
+  }
+
+  // --- مركز المؤشرات ---
+  if (p === '/api/indicators' && method === 'GET') return json(res, 200, IND.all());
+  if (p === '/api/indicators' && method === 'POST') {
+    if (auth.RANK[user.role] < 1) return json(res, 403, { error: 'للمدير أو المسؤول فقط' });
+    try { const x = IND.create(user, JSON.parse(await readBody(req, 100000))); store.audit({ action: 'indicator-create', by: user.username, id: x.id }); return json(res, 201, x); } catch (e) { return json(res, 400, { error: e.message }); }
+  }
+  const im = p.match(/^\/api\/indicators\/(ind-[a-z0-9]{4,20})$/);
+  if (im) {
+    if (auth.RANK[user.role] < 1) return json(res, 403, { error: 'للمدير أو المسؤول فقط' });
+    try {
+      if (method === 'PUT') { const x = IND.update(user, im[1], JSON.parse(await readBody(req, 100000))); store.audit({ action: 'indicator-update', by: user.username, id: x.id }); return json(res, 200, x); }
+      if (method === 'DELETE') { IND.remove(im[1]); store.audit({ action: 'indicator-delete', by: user.username, id: im[1] }); return json(res, 200, { ok: true }); }
+    } catch (e) { return json(res, 400, { error: e.message }); }
+    return json(res, 405, { error: 'غير مدعوم' });
   }
 
   // --- مساعد الكتابة (الخادم فقط) ---
@@ -603,7 +620,7 @@ const server = http.createServer(async (req, res) => {
       if (!user) return redirect(res, '/login.html?next=' + encodeURIComponent(req.url));
       const d = await readReport(m[1]);
       if (!WF.access(user, d).read) return page403(res, 'هذا التقرير ليس من تقاريرك ولم يُشارَك معك.');
-      return send(res, 200, R.renderPage(d, { config: loadConfig(), id: m[1], workflow: d.workflow }), MIME['.html'], { 'Cache-Control': 'no-store' });
+      return send(res, 200, R.renderPage(d, { config: loadConfig(), id: m[1], workflow: d.workflow, indicators: IND.map() }), MIME['.html'], { 'Cache-Control': 'no-store' });
     }
 
     if (p.startsWith('/s/') && (req.method === 'GET' || req.method === 'POST')) return await handleShare(req, res, p);
@@ -615,7 +632,7 @@ const server = http.createServer(async (req, res) => {
       if (!user) return redirect(res, '/login.html?next=' + encodeURIComponent(req.url));
       const d = await readDeck(dv[1]);
       if (!deckAccess(user, d).read) return page403(res, 'هذا العرض ليس من عروضك.');
-      return send(res, 200, D.renderDeckPage(d, { config: loadConfig(), id: dv[1], actions: `<a class="btn" href="/deck.html?id=${dv[1]}">تعديل</a><a class="btn" href="/api/decks/${dv[1]}/export.html">تنزيل صفحة ويب</a>` }), MIME['.html'], { 'Cache-Control': 'no-store' });
+      return send(res, 200, D.renderDeckPage(d, { config: loadConfig(), id: dv[1], indicators: IND.map(), actions: `<a class="btn" href="/deck.html?id=${dv[1]}">تعديل</a><a class="btn" href="/api/decks/${dv[1]}/export.html">تنزيل صفحة ويب</a>` }), MIME['.html'], { 'Cache-Control': 'no-store' });
     }
 
     if (req.method === 'GET' && PROTECTED_PAGES.has(p)) {

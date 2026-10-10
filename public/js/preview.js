@@ -3,11 +3,12 @@ import { store, select, on } from './store.js';
 import { debounce } from './ui.js';
 
 const RBR = window.RBR;
+import { loadIndicators, getIndicatorMap } from './indicators-cache.js';
 export let config = {};
-export const loadConfig = async () => { try { config = await (await fetch('/api/config')).json(); } catch (e) { config = {}; } return config; };
+export const loadConfig = async () => { try { config = await (await fetch('/api/config')).json(); } catch (e) { config = {}; } await loadIndicators(); return config; };
 
 export function renderPayload(report, o = {}) {
-  const r = RBR.makeRenderer(report, { config, preview: o.preview !== false });
+  const r = RBR.makeRenderer(report, { config, preview: o.preview !== false, indicators: getIndicatorMap() });
   const a = r.rootAttrs();
   return { type: 'render', html: r.source(), cls: a.cls, style: a.style, sid: o.sid };
 }
