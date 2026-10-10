@@ -168,17 +168,27 @@ async function slideXml(c, deck, s, i, total, logos, geo) {
     shapes.push(box(c, { x: 60, y: 70, w: sw - 64 - 28 - 60, h: 62, anchor: 'ctr', text: P(c, s.title, { sz: 34, b: true, color: fg }), name: 'العنوان' }));
     let y0 = 150;
     if (s.subtitle) { shapes.push(box(c, { x: 60, y: 128, w: sw - 120, h: 36, text: P(c, s.subtitle, { sz: 18, color: dark ? 'CDE7E3' : '5B6B7A' }) })); y0 = 175; }
-    const bl = (s.bullets || []).filter((b) => String(b).trim()), blk = RBR.applyRef(RBD.blockOf(deck, s), getIndicatorMap()), hasBlk = blk && !RBR.isEmptySection(blk);
+    const bl = (s.bullets || []).filter((b) => String(b).trim());
+    const blks = RBD.blocksOf(deck, s).map((x) => RBR.applyRef(x, getIndicatorMap())).filter((x) => !RBR.isEmptySection(x));
     const H = sh - y0 - 56;
     if (bl.length) {
-      const bw = hasBlk ? (sw - 120) * 0.38 : sw - 120, size = bl.length > 6 || hasBlk ? 22 : 26;
-      shapes.push(box(c, { x: sw - 60 - bw, y: y0, w: bw, h: H, text: bl.map((b) => P(c, b, { sz: size, bullet: true, bulColor: c.x, color: dark ? 'FFFFFF' : '17212C', spc: 8 })).join(''), name: 'نقاط' }));
+      const bw = blks.length ? (sw - 120) * 0.38 : sw - 120, size = bl.length > 6 || blks.length ? 22 : 26;
+      shapes.push(box(c, { x: sw - 60 - bw, y: y0, w: bw, h: H, text: bl.map((b) => P(c, b, { sz: size, bullet: true, bulColor: c.x, spc: 8 })).join(''), name: 'نقاط' }));
     }
-    if (hasBlk) {
-      const bw = bl.length ? (sw - 120) * 0.58 : sw - 120;
-      shapes.push(...(await blockShapes(c, blk, { x: 60, y: y0 + (bl.length ? 0 : 6), w: bw, h: H - (blk.source || blk.asOf ? 26 : 0) })));
-      const note = [blk.source && 'المصدر: ' + blk.source, /^\d{4}-\d{2}-\d{2}$/.test(blk.asOf || '') && 'آخر تحديث: ' + blk.asOf].filter(Boolean).join(' · ');
-      if (note) shapes.push(box(c, { x: 60, y: sh - 72, w: sw - 120, h: 28, text: P(c, note, { sz: 12, color: '7B8996' }), name: 'المصدر' }));
+    if (blks.length) {
+      const bw = bl.length ? (sw - 120) * 0.58 : sw - 120, rows = [];
+      blks.forEach((b) => { const last = rows[rows.length - 1]; if (b.width === 'half' && last && last.length === 1 && last[0].width === 'half') last.push(b); else rows.push([b]); });
+      const gap = 14, rh = (H - gap * (rows.length - 1)) / rows.length;
+      for (let ri = 0; ri < rows.length; ri++) {
+        const row = rows[ri], cw = (bw - gap * (row.length - 1)) / row.length, ry = y0 + ri * (rh + gap);
+        for (let ci = 0; ci < row.length; ci++) {
+          const b = row[ci], cx = 60 + bw - (ci + 1) * cw - ci * gap, note = [b.source && 'المصدر: ' + b.source, /^\d{4}-\d{2}-\d{2}$/.test(b.asOf || '') && 'آخر تحديث: ' + b.asOf].filter(Boolean).join(' · ');
+          const th = b.title ? 30 : 0, nh = note ? 22 : 0;
+          if (b.title) shapes.push(box(c, { x: cx, y: ry, w: cw, h: th, text: P(c, b.title, { sz: 18, b: true, color: c.d }), name: 'عنوان القسم' }));
+          shapes.push(...(await blockShapes(c, b, { x: cx, y: ry + th, w: cw, h: rh - th - nh })));
+          if (note) shapes.push(box(c, { x: cx, y: ry + rh - nh, w: cw, h: nh, text: P(c, note, { sz: 11, color: '7B8996' }), name: 'المصدر' }));
+        }
+      }
     }
     shapes.push(box(c, { x: 60, y: sh - 40, w: sw - 120, h: 28, text: P(c, `${i + 1} / ${total}`, { sz: 12, color: '7B8996', algn: 'l' }), name: 'رقم الشريحة' }));
   }

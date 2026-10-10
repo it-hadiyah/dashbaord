@@ -21,10 +21,12 @@
 
   function newSlide(layout, o) {
     o = o || {};
-    return { id: uid(), layout: LAYOUTS[layout] ? layout : 'content', bg: o.bg || LAYOUTS[layout || 'content'].bg, title: o.title || '', subtitle: o.subtitle || '', bullets: (o.bullets || []).slice(), notes: o.notes || '', blockId: o.blockId || '', hint: o.hint || '' };
+    return { id: uid(), layout: LAYOUTS[layout] ? layout : 'content', bg: o.bg || LAYOUTS[layout || 'content'].bg, title: o.title || '', subtitle: o.subtitle || '', bullets: (o.bullets || []).slice(), notes: o.notes || '', blockIds: (o.blockIds || []).slice(), hint: o.hint || '' };
   }
 
-  function blockOf(deck, slide) { return slide.blockId ? (deck.sections || []).find((s) => s.id === slide.blockId) || null : null; }
+  const idsOf = (slide) => (Array.isArray(slide.blockIds) && slide.blockIds.length ? slide.blockIds : slide.blockId ? [slide.blockId] : []);
+  function blocksOf(deck, slide) { return idsOf(slide).map((id) => (deck.sections || []).find((s) => s.id === id)).filter(Boolean); }
+  const blockOf = (deck, slide) => blocksOf(deck, slide)[0] || null;
 
   /* ---------- الرسم ---------- */
   function ctxReport(deck) { return { options: Object.assign({}, T.DEFAULT_OPTIONS, deck.options || {}), palette: deck.palette, template: 'blank', sections: [] }; }
@@ -36,7 +38,6 @@
     const dark = bg === 'brand' || bg === 'dark';
     const logo = r.logoHtml('s-logo', { light: dark });
     const pat = r.patternHtml('s-pattern', true);
-    const block = R.applyRef(blockOf(deck, slide), ctx.indicators);
     const idx = ctx.index || 0, total = ctx.total || 0;
     const foot = deck.options && deck.options.pageNumbers === false ? '' : `<div class="s-foot"><span>${E(deck.options && deck.options.footerText || cfg.orgName || '')}</span><span class="s-pg">شريحة <bdi>${E(String(idx + 1))}</bdi> من <bdi>${E(String(total || ''))}</bdi></span></div>`;
     const sample = deck.sample ? '<div class="s-ribbon">بيانات تجريبية</div>' : '';
@@ -52,11 +53,15 @@
       inner = `<div class="s-sec s-close">${r.logoHtml('s-logo big', { light: true, vertical: true })}<h2>${E(slide.title || 'شكراً لكم')}</h2>${slide.subtitle ? `<p>${E(slide.subtitle)}</p>` : `<p>${E(cfg.orgName || '')}</p>`}${lines}${pat}</div>`;
     } else {
       const bl = (slide.bullets || []).filter((b) => String(b).trim());
-      const empty = block && R.isEmptySection(block);
-      let main = '';
-      if (block && !empty) main = `<div class="s-wrap"><div class="s-block b-${esc(block.type)}">${r.body(block)}</div>${r.sourceNote(block)}</div>`;
-      else if (block && empty && ctx.preview) main = `<div class="s-block s-ph">${E(slide.hint || 'أضف بيانات لهذا المحتوى من لوحة التحرير')}</div>`;
-      else if (!block && !bl.length && ctx.preview) main = `<div class="s-block s-ph">${E(slide.hint || 'اكتب نقاط هذه الشريحة من لوحة التحرير')}</div>`;
+      const blocks = blocksOf(deck, slide).map((b) => R.applyRef(b, ctx.indicators));
+      const real = blocks.filter((b) => !R.isEmptySection(b));
+      const shown = ctx.preview ? blocks : real;
+      const z = shown.length <= 1 ? 1.6 : shown.length === 2 ? 1.2 : 1.0;
+      const cells = shown.map((b) => (R.isEmptySection(b)
+        ? `<div class="s-wrap w-${b.width === 'half' ? 'half' : 'full'}"><div class="s-block s-ph">${E(b.hint || slide.hint || 'أضف بيانات لهذا القسم من لوحة التحرير')}</div></div>`
+        : `<div class="s-wrap w-${b.width === 'half' ? 'half' : 'full'}"><div class="s-block b-${esc(b.type)}" style="zoom:${z}">${r.body(b)}</div>${r.sourceNote(b)}</div>`));
+      let main = cells.length ? `<div class="s-blocks${shown.length > 1 ? ' multi' : ''}">${shown.map((b, i) => (b.title && !R.isEmptySection(b) ? cells[i].replace('<div class="s-block ', `<h3 class="s-bt">${E(b.title)}</h3><div class="s-block `) : cells[i])).join('')}</div>` : '';
+      if (!main && !bl.length && ctx.preview) main = `<div class="s-blocks"><div class="s-wrap w-full"><div class="s-block s-ph">${E(slide.hint || 'اكتب نقاط هذه الشريحة أو أضف قسماً من لوحة التحرير')}</div></div></div>`;
       const list = bl.length ? `<ul class="s-list">${bl.map((b) => `<li>${E(b)}</li>`).join('')}</ul>` : '';
       const two = main && list ? ' two' : '';
       inner = `<div class="s-content">${logo}<h2 class="s-title">${E(slide.title)}</h2>${slide.subtitle ? `<p class="s-sub">${E(slide.subtitle)}</p>` : ''}<div class="s-body${two}">${list}${main}</div></div>`;
@@ -106,12 +111,12 @@ ${css}
   const mk = (type, title, content) => ({ type, title: title || '', content });
   const HINTS = { cover: 'اكتب عنوان العرض والعنوان الفرعي (واسم المقدّم والتاريخ من «إعدادات العرض كله»).', section: 'اكتب عنوان هذا القسم من العرض.', closing: 'شريحة الختام: يمكنك تغيير عبارة الشكر.',
     kpi: 'اختر «مؤشرات رئيسية» وأدخل أهم 3 إلى 4 أرقام مع نسبة تغيّرها.', chart: 'أدخل التسميات والقيم لتظهر في الرسم، أو اربطه بمؤشر مركزي.', table: 'أدخل عناوين الأعمدة وصفوف الجدول، أو استوردها من Excel.', compare: 'أدخل قيمة كل بند في الفترتين وستظهر نسبة الارتفاع أو الانخفاض تلقائياً.', calc: 'أدخل الأرقام وسيُحسب المتبقي والنسبة تلقائياً.', progress: 'أدخل نسبة إنجاز كل بند.', timeline: 'اذكر المراحل وتواريخها وحالتها.', gantt: 'أدخل المهام بتواريخ البداية والنهاية.', callout: 'اكتب الملاحظة المهمة.', image: 'أضف صورة.', bullets: 'اكتب النقاط الرئيسية لهذه الشريحة، كل نقطة في سطر.' };
-  const autoHint = (d) => d.hint || (d.layout === 'cover' || d.layout === 'section' || d.layout === 'closing' ? HINTS[d.layout] : d.block ? HINTS[d.block.type] : HINTS.bullets);
+  const autoHint = (d) => d.hint || (d.layout === 'cover' || d.layout === 'section' || d.layout === 'closing' ? HINTS[d.layout] : d.blocks && d.blocks.length > 1 ? 'أضف أقسام هذه الشريحة وعبّئ كل قسم، ويمكنك جعل القسم بنصف العرض ليجاور غيره.' : (d.block || (d.blocks && d.blocks[0])) ? HINTS[(d.block || d.blocks[0]).type] : HINTS.bullets);
   function attach(deck, defs) {
     deck.sections = []; deck.slides = [];
     defs.forEach((d) => {
       const s = newSlide(d.layout || 'content', d); s.hint = autoHint(d);
-      if (d.block) { const b = T.makeSection(d.block.type, d.block.title || '', {}); b.content = JSON.parse(JSON.stringify(d.block.content)); b.hint = ''; deck.sections.push(b); s.blockId = b.id; }
+      (d.blocks || (d.block ? [d.block] : [])).forEach((bd) => { const b = T.makeSection(bd.type, bd.title || '', {}); b.content = JSON.parse(JSON.stringify(bd.content)); b.hint = ''; if (bd.width) b.width = bd.width; deck.sections.push(b); s.blockIds.push(b.id); });
       deck.slides.push(s);
     });
     return deck;
@@ -131,6 +136,7 @@ ${css}
   const calcB = (rows) => mk('calc', '', { style: 'table', rows });
   const progB = (items) => mk('progress', '', { items: items.map((i) => ({ label: i[0], value: String(i[1]) })) });
   const tlB = (items) => mk('timeline', '', { items: items.map((i) => ({ date: i[0], title: i[1], desc: '', status: i[2] || 'todo' })) });
+  const half = (b) => Object.assign({}, b, { width: 'half' });
   const SL = (title, o) => Object.assign({ layout: 'content', title }, o || {});
   const SEC = (title, subtitle) => ({ layout: 'section', title, subtitle: subtitle || '' });
   const END = () => ({ layout: 'closing', title: 'شكراً لكم' });
@@ -154,7 +160,7 @@ ${css}
     { id: 'achievements', name: 'الإنجازات', desc: 'أبرز إنجازات الفترة بالأرقام.', palette: 'teal', slides: [
       { layout: 'cover', title: 'الإنجازات', subtitle: 'ما تحقق خلال الفترة' },
       SL('إنجازات بارزة', { bullets: ['اكتمال المرحلة الأولى قبل الموعد', 'توقيع اتفاقيات شراكة جديدة', 'رفع رضا المستفيدين'] }),
-      SL('الإنجاز مقابل المستهدف', { block: progB([['التحول الرقمي', 90], ['الشراكات', 75], ['الاستدامة المالية', 60]]) }),
+      SL('الإنجاز مقابل المستهدف', { blocks: [Object.assign(half(progB([['التحول الرقمي', 90], ['الشراكات', 75], ['الاستدامة المالية', 60]])), { title: 'نسب الإنجاز' }), Object.assign(half(chartB('line', [['الربع 1', 55], ['الربع 2', 68], ['الربع 3', 80], ['الربع 4', 90]], '%')), { title: 'اتجاه الإنجاز' })] }),
       SL('تطور الإنجاز', { block: chartB('line', [['الربع 1', 55], ['الربع 2', 68], ['الربع 3', 80], ['الربع 4', 90]], '%') }),
       END()] },
     { id: 'projects', name: 'المشاريع والمبادرات', desc: 'حالة المشاريع وإنجازها وجدولها الزمني.', palette: 'plum', slides: [
@@ -171,7 +177,7 @@ ${css}
       END()] },
     { id: 'finperf', name: 'الأداء المالي', desc: 'إيرادات ومصروفات وفائض ومقارنة بالسنوات.', palette: 'hadiyah', slides: [
       { layout: 'cover', title: 'الأداء المالي', subtitle: 'الإيرادات والمصروفات' },
-      SL('المؤشرات المالية', { block: kpiB([['الإيرادات', '4.2 مليون', '+14%'], ['المصروفات', '3.65 مليون', '+10%'], ['الفائض', '550 ألف', '+37%']]) }),
+      SL('المؤشرات المالية', { blocks: [Object.assign(kpiB([['الإيرادات', '4.2 مليون', '+14%'], ['المصروفات', '3.65 مليون', '+10%'], ['الفائض', '550 ألف', '+37%']]), { title: 'أبرز الأرقام' }), Object.assign(chartB('bar', [['2023', 3100], ['2024', 3700], ['2025', 4200]], 'ألف ريال'), { title: 'نمو الإيرادات' })] }),
       SL('مقارنة السنوات', { block: tableB(['البند', '2023', '2024', '2025'], [['الإيرادات', '3,100,000', '3,700,000', '4,200,000'], ['المصروفات', '2,900,000', '3,300,000', '3,650,000'], ['الفائض', '200,000', '400,000', '550,000']]) }),
       SL('اتجاه الإيرادات', { block: chartB('bar', [['2023', 3100], ['2024', 3700], ['2025', 4200]], 'ألف ريال') }),
       SL('مصادر الإيراد', { block: chartB('pie', [['التبرعات', 62], ['الأوقاف', 21], ['الشراكات', 12], ['أخرى', 5]], '%') }),
@@ -213,7 +219,7 @@ ${css}
     o = o || {};
     const t = TEMPLATES.find((x) => x.id === templateId) || TEMPLATES[TEMPLATES.length - 1];
     const deck = baseDeck({ template: t.id, palette: t.palette, ratio: o.ratio, sample: o.sample, title: o.sample ? t.slides[0].title : '', subtitle: o.sample ? t.slides[0].subtitle : '' });
-    const defs = t.slides.map((d) => (o.sample ? d : Object.assign({}, d, { block: d.block ? { type: d.block.type, title: d.block.title, content: T.emptyContent(d.block.type) } : null, bullets: [], title: d.layout === 'cover' || d.layout === 'closing' ? d.title : d.title, subtitle: d.layout === 'cover' ? '' : d.subtitle })));
+    const defs = t.slides.map((d) => (o.sample ? d : Object.assign({}, d, { blocks: (d.blocks || (d.block ? [d.block] : [])).map((x) => ({ type: x.type, title: x.title, width: x.width, content: T.emptyContent(x.type) })), block: null, bullets: [], title: d.layout === 'cover' || d.layout === 'closing' ? d.title : d.title, subtitle: d.layout === 'cover' ? '' : d.subtitle })));
     return attach(deck, defs);
   }
 
@@ -270,13 +276,13 @@ ${css}
     r.sections = [];
     deck.slides.forEach((s) => {
       if (s.layout !== 'content') return;
-      const bl = (s.bullets || []).filter((b) => String(b).trim()), b = blockOf(deck, s);
+      const bl = (s.bullets || []).filter((b) => String(b).trim()), bs = blocksOf(deck, s).filter((b) => !R.isEmptySection(b));
       if (bl.length) { const l = T.makeSection('list', s.title, {}); l.content = { ordered: false, items: bl.slice() }; r.sections.push(l); }
-      if (b && !R.isEmptySection(b)) { const c = T.makeSection(b.type, s.title, {}); c.content = JSON.parse(JSON.stringify(b.content)); c.icon = b.icon || ''; c.width = 'full'; r.sections.push(c); }
+      bs.forEach((b, i) => { const c = T.makeSection(b.type, b.title || (i === 0 ? s.title : ''), {}); c.content = JSON.parse(JSON.stringify(b.content)); c.icon = b.icon || ''; c.width = b.width === 'half' ? 'half' : 'full'; c.source = b.source || ''; c.asOf = b.asOf || ''; r.sections.push(c); });
     });
     if (!r.sections.length) r.sections.push(T.makeSection('text', 'المقدمة', {}));
     return r;
   }
 
-  return { RATIOS, LAYOUTS, BGS, BLOCK_TYPES, TEMPLATES, newSlide, blockOf, renderSlide, renderDeckPage, rootStyle, createDeck, fromReport, toReport, baseDeck };
+  return { RATIOS, LAYOUTS, BGS, BLOCK_TYPES, TEMPLATES, newSlide, blockOf, blocksOf, idsOf, renderSlide, renderDeckPage, rootStyle, createDeck, fromReport, toReport, baseDeck };
 });

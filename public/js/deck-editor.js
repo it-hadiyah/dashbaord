@@ -54,7 +54,7 @@ function slideField(id, fn, key) { edit((r) => { const s = r.slides.find((x) => 
 function renderProps() {
   const d = deck(), s = curSlide(), box = $('dk-props');
   if (!s) { box.replaceChildren(); return; }
-  const blk = D.blockOf(d, s);
+  const blks = D.blocksOf(d, s);
   const content = s.layout === 'content';
   const parts = [
     el('h3', {}, 'الشريحة ' + (cur + 1) + ' من ' + d.slides.length),
@@ -66,8 +66,10 @@ function renderProps() {
   ];
   if (content) {
     parts.push(field('نقاط الشريحة (كل سطر نقطة)', el('textarea', { rows: 5, dir: 'auto', placeholder: 'اكتب نقطة في كل سطر', oninput: (e) => slideField(s.id, (x) => { x.bullets = e.target.value.split('\n').filter((l) => l.trim()); }, 'bl') }, (s.bullets || []).join('\n'))));
-    parts.push(field('المحتوى (رسم، جدول، مؤشرات...)', el('select', { 'aria-label': 'نوع المحتوى', onchange: (e) => setBlock(e.target.value) }, el('option', { value: '' }, 'بدون'), D.BLOCK_TYPES.map((t) => el('option', { value: t, selected: blk && blk.type === t }, BLOCK_NAMES[t])))));
-    if (blk) parts.push(el('div', { id: 'dk-block' }, sectionEditor(blk)));
+    parts.push(el('h3', {}, 'أقسام الشريحة'));
+    if (!blks.length) parts.push(el('p', { class: 'muted' }, 'لا توجد أقسام بعد. أضف قسماً (مؤشرات، رسم، جدول...) كما في التقرير.'));
+    blks.forEach((b, i) => parts.push(sectionCard(s, b, i, blks.length)));
+    parts.push(el('div', { class: 'btns' }, btn('+ إضافة قسم', { cls: 'sm primary', onclick: addSectionMenu })));
   }
   parts.push(field('ملاحظات المقدّم (لا تظهر في الشريحة)', el('textarea', { rows: 3, dir: 'auto', oninput: (e) => slideField(s.id, (x) => { x.notes = e.target.value; }, 'nt') }, s.notes || '')));
   parts.push(el('div', { class: 'btns' }, btn('→ الشريحة التالية', { cls: 'primary', onclick: () => select(cur + 1), disabled: cur >= d.slides.length - 1 })));
@@ -83,6 +85,42 @@ function renderProps() {
     el('label', { class: 'chk' }, el('input', { type: 'checkbox', checked: !!d.options.arabicDigits, onchange: (e) => edit((r) => { r.options.arabicDigits = e.target.checked; }, null, 'structure') }), 'استخدام الأرقام العربية ٠١٢')));
   box.replaceChildren(...parts);
 }
+
+function sectionCard(s, b, i, n) {
+  const open = openBlock === b.id;
+  const head = el('div', { class: 'dk-sec-h' },
+    el('button', { type: 'button', class: 'dk-sec-t', 'aria-expanded': String(open), onclick: () => { openBlock = open ? null : b.id; renderProps(); } }, el('b', {}, b.title || BLOCK_NAMES[b.type]), el('small', { class: 'muted' }, ' · ' + BLOCK_NAMES[b.type])),
+    el('span', { class: 'dk-sec-a' },
+      btn(b.width === 'half' ? 'نصف' : 'كامل', { cls: 'sm ghost', title: 'عرض القسم في الشريحة', onclick: () => { edit((r) => { const x = r.sections.find((q) => q.id === b.id); x.width = x.width === 'half' ? 'full' : 'half'; }, null, 'structure'); renderProps(); } }),
+      btn('▲', { cls: 'sm ghost', disabled: i === 0, onclick: () => moveBlock(s.id, i, i - 1) }), btn('▼', { cls: 'sm ghost', disabled: i === n - 1, onclick: () => moveBlock(s.id, i, i + 1) }),
+      btn('✕', { cls: 'sm ghost', title: 'حذف القسم', onclick: () => removeBlock(s.id, b.id) })));
+  const card = el('div', { class: 'dk-sec' + (open ? ' open' : '') }, head);
+  if (open) card.append(el('div', { class: 'dk-sec-b' }, field('عنوان القسم (يظهر فوقه في الشريحة)', textInput(b.title || '', (v) => { edit((r) => { const x = r.sections.find((q) => q.id === b.id); if (x) x.title = v; }, 'bt' + b.id, 'content'); })), sectionEditor(b)));
+  return card;
+}
+function addBlock(type) {
+  const id = curSlide().id; let nid = '';
+  edit((r) => {
+    const s = r.slides.find((x) => x.id === id), b = T.makeSection(type, '', {}); b.hint = ''; r.sections.push(b);
+    s.blockIds = (s.blockIds || []).concat([b.id]); nid = b.id;
+  }, null, 'structure');
+  openBlock = nid; renderProps();
+}
+function removeBlock(slideId, bid) {
+  edit((r) => { const s = r.slides.find((x) => x.id === slideId); s.blockIds = (s.blockIds || []).filter((x) => x !== bid); r.sections = r.sections.filter((x) => x.id !== bid); }, null, 'structure'); renderProps();
+}
+function moveBlock(slideId, from, to) {
+  edit((r) => { const s = r.slides.find((x) => x.id === slideId); s.blockIds.splice(to, 0, s.blockIds.splice(from, 1)[0]); }, null, 'structure'); renderProps();
+}
+function addSectionMenu(e) {
+  const root = $('menu-root'); if (root.firstChild) { root.replaceChildren(); return; }
+  const r = e.currentTarget.getBoundingClientRect();
+  const menu = el('div', { class: 'menu', role: 'menu', style: `top:${r.bottom + 6}px;left:${Math.max(8, r.left)}px;max-height:60vh;overflow:auto` }, ...Object.keys(BLOCK_NAMES).map((t) => el('button', { type: 'button', role: 'menuitem', onclick: () => { root.replaceChildren(); addBlock(t); } }, el('span', {}, BLOCK_NAMES[t]))));
+  root.replaceChildren(menu);
+  const close = (ev) => { if (!menu.contains(ev.target)) { root.replaceChildren(); document.removeEventListener('click', close, true); } };
+  setTimeout(() => document.addEventListener('click', close, true), 0);
+}
+let openBlock = null;
 
 function setBlock(type) {
   const id = curSlide().id;
@@ -107,7 +145,7 @@ function addMenu(e) {
   const item = (label, fn) => el('button', { type: 'button', role: 'menuitem', onclick: () => { root.replaceChildren(); fn(); } }, el('span', {}, label));
   const m = el('div', { class: 'menu', role: 'menu', style: `top:${r.bottom + 6}px;right:${Math.max(8, innerWidth - r.right)}px` },
     ...Object.entries(D.LAYOUTS).map(([k, v]) => item('شريحة ' + v.name, () => addSlide(k))),
-    ...['kpi', 'chart', 'table', 'compare'].map((t) => item('شريحة: ' + BLOCK_NAMES[t], () => { addSlide('content'); setBlock(t); })));
+    ...['kpi', 'chart', 'table', 'compare'].map((t) => item('شريحة: ' + BLOCK_NAMES[t], () => { addSlide('content'); addBlock(t); })));
   root.replaceChildren(m);
   const close = (ev) => { if (!m.contains(ev.target)) { root.replaceChildren(); document.removeEventListener('click', close, true); } };
   setTimeout(() => document.addEventListener('click', close, true), 0);
@@ -115,7 +153,7 @@ function addMenu(e) {
 function dupSlide() {
   edit((r) => {
     const s = r.slides[cur], c = JSON.parse(JSON.stringify(s)); c.id = T.uid();
-    const b = D.blockOf(r, s); if (b) { const nb = JSON.parse(JSON.stringify(b)); nb.id = T.uid(); r.sections.push(nb); c.blockId = nb.id; }
+    c.blockIds = D.blocksOf(r, s).map((b) => { const nb = JSON.parse(JSON.stringify(b)); nb.id = T.uid(); r.sections.push(nb); return nb.id; }); delete c.blockId;
     r.slides.splice(cur + 1, 0, c);
   }, null, 'structure');
   select(cur + 1);
@@ -123,7 +161,7 @@ function dupSlide() {
 async function delSlide() {
   if (deck().slides.length <= 1) { toast('يجب أن يبقى شريحة واحدة على الأقل', { tone: 'err' }); return; }
   if (!(await confirmDialog({ title: 'حذف الشريحة', text: 'سيتم حذف الشريحة ' + (cur + 1) + '. يمكنك التراجع بـ Ctrl+Z.', ok: 'حذف', danger: true }))) return;
-  edit((r) => { const s = r.slides[cur]; if (s.blockId) r.sections = r.sections.filter((b) => b.id !== s.blockId); r.slides.splice(cur, 1); }, null, 'structure');
+  edit((r) => { const s = r.slides[cur], ids = D.idsOf(s); r.sections = r.sections.filter((b) => !ids.includes(b.id)); r.slides.splice(cur, 1); }, null, 'structure');
   select(Math.min(cur, deck().slides.length - 1));
 }
 function moveSlide(from, to) {
@@ -177,7 +215,7 @@ function exportMenu(e) {
 }
 
 /* ---------- التشغيل ---------- */
-function filled(d, s) { const b = D.blockOf(d, s); return s.layout !== 'content' ? !!String(s.title || '').trim() : (s.bullets || []).some((x) => x.trim()) || (b && !window.RBR.isEmptySection(b)); }
+function filled(d, s) { const b = D.blocksOf(d, s).find((x) => !window.RBR.isEmptySection(x)); return s.layout !== 'content' ? !!String(s.title || '').trim() : (s.bullets || []).some((x) => x.trim()) || !!b; }
 function progress() { const d = deck(), n = d.slides.filter((s) => filled(d, s)).length; $('dk-prog').textContent = 'اكتمل ' + n + ' من ' + d.slides.length + ' شريحة'; }
 function full() { progress(); cur = Math.min(cur, deck().slides.length - 1); renderThumbs(); renderStage(); renderProps(); $('dk-name').textContent = deck().title || 'عرض بلا عنوان'; }
 on((kind) => {

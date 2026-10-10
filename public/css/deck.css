@@ -24,7 +24,7 @@
 .s-sub { font-size: 24px; margin: 0 0 8px; color: #5b6b7a; }
 .s-content .s-logo { top: 26px; height: 42px; }
 .s-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 24px; justify-content: flex-start; padding-top: 18px; overflow: hidden; }
-.s-body.two { flex-direction: row; align-items: center; } .s-body.two .s-list { flex: 0 0 38%; } .s-body.two .s-wrap { flex: 1; min-width: 0; }
+.s-body.two { flex-direction: row; align-items: center; } .s-body.two .s-list { flex: 0 0 38%; } .s-body.two .s-blocks { flex: 1; min-width: 0; }
 .s-list { margin: 0; padding-inline-start: 34px; font-size: 32px; line-height: 1.7; }
 .s-list li { margin-bottom: 10px; } .s-list li::marker { color: var(--x); }
 .s-block { zoom: 1.6; min-width: 0; } .s-block > * { margin: 0; }
@@ -59,3 +59,9 @@ body.deck-view { margin: 0; background: #1b2530; min-height: 100vh; }
 
 .s-block + .src-note, .s-body > .src-note { font-size: 15px; margin-top: 4px; color: #7b8996; }
 .slide.bg-dark .src-note, .slide.bg-brand .src-note { color: rgba(255,255,255,.75); }
+
+.s-blocks { display: flex; flex-wrap: wrap; gap: 14px 20px; flex: 1; min-width: 0; align-content: flex-start; width: 100%; }
+.s-wrap { flex: 1 1 100%; min-width: 0; } .s-wrap.w-half { flex: 1 1 calc(50% - 10px); }
+.s-bt { margin: 0 0 6px; font-size: 24px; color: var(--d); font-weight: 700; }
+.slide.bg-dark .s-bt, .slide.bg-brand .s-bt { color: #fff; }
+.s-blocks.multi .chart svg { max-height: 230px; } .s-blocks.multi .s-ph { padding: 24px; font-size: 18px; }

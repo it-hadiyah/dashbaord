@@ -28,7 +28,9 @@ body.dk-page{display:flex;flex-direction:column;height:100vh;overflow:hidden;bac
 .dk-props{overflow:auto;border-inline-start:1px solid var(--border,#dde3e8);padding:14px;background:var(--surface,#fff)}
 .dk-props h3{margin:14px 0 6px;font-size:1rem}
 .dk-props textarea{width:100%;font:inherit;padding:8px;border:1px solid var(--border,#d6dde3);border-radius:8px}
-#dk-block .ed-head,#dk-block .hint,#dk-block .sec-ed>.fld{display:none}
+.dk-sec-b .ed-head,.dk-sec-b .hint,.dk-sec-b .sec-ed>.fld{display:none}
+.dk-sec{border:1px solid var(--border,#dde3e8);border-radius:10px;margin-bottom:8px;background:var(--surface,#fff)}.dk-sec.open{border-color:var(--brand,#007f73)}
+.dk-sec-h{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;flex-wrap:wrap}.dk-sec-t{border:0;background:none;font:inherit;cursor:pointer;text-align:start;flex:1;min-width:120px;color:inherit}.dk-sec-a{display:flex;gap:2px}.dk-sec-b{padding:8px 10px 12px;border-top:1px solid var(--border,#dde3e8)}
 .dk-th .slide{transform-origin:top right}
 .dk-tabs{display:flex;gap:6px;margin-bottom:8px}
 @media(max-width:1000px){.dk-wrap{grid-template-columns:1fr;grid-template-rows:auto 1fr auto;overflow:auto}.dk-thumbs{flex-direction:row;overflow-x:auto;border:0}.dk-th{width:150px}}
