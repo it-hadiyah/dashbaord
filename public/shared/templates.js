@@ -26,11 +26,24 @@
     progress: { name: 'مؤشرات تقدم', icon: 'progress', desc: 'أشرطة نسب الإنجاز' },
     timeline: { name: 'خط زمني', icon: 'timeline', desc: 'مراحل ومعالم زمنية' },
     image: { name: 'صورة / شعار', icon: 'image', desc: 'رفع صورة مع تعليق' },
+    calc: { name: 'حسابات تلقائية', icon: 'calculator', desc: 'أدخل أرقاماً ويُحسب المتبقي والنسب' },
+    compare: { name: 'مقارنة بين فترتين', icon: 'compare', desc: 'السنة الماضية مقابل الحالية بنسبة التغيّر' },
     callout: { name: 'ملاحظة بارزة', icon: 'callout', desc: 'تنبيه أو خلاصة مميزة' },
     pagebreak: { name: 'فاصل صفحة', icon: 'pagebreak', desc: 'بدء صفحة جديدة' },
   };
 
   const TYPES = Object.keys(BLOCKS);
+
+  // وصفات جاهزة لقسم الحسابات (الحروف A, B, C... ثابتة لكل بند وتُستخدم في العمليات)
+  const inp = (key, label, extra) => Object.assign({ key, label, kind: 'input', value: '', unit: '', fmt: 'number' }, extra || {});
+  const res = (key, label, op, args, extra) => Object.assign({ key, label, kind: 'calc', op, args, formula: '', unit: '', fmt: 'number' }, extra || {});
+  const CALC_RECIPES = {
+    budget: { name: 'ميزانية مشروع: المتبقي ونسبة الصرف', rows: () => [inp('A', 'التبرعات', { unit: 'ريال' }), inp('B', 'المنفّذ', { unit: 'ريال' }), res('C', 'المتبقي', 'sub', ['A', 'B'], { unit: 'ريال' }), res('D', 'نسبة التنفيذ', 'pct', ['B', 'A'], { fmt: 'percent' })] },
+    surplus: { name: 'الإيرادات − المصروفات = الفائض', rows: () => [inp('A', 'الإيرادات', { unit: 'ريال' }), inp('B', 'المصروفات', { unit: 'ريال' }), res('C', 'الفائض / العجز', 'sub', ['A', 'B'], { unit: 'ريال' }), res('D', 'نسبة المصروفات من الإيرادات', 'pct', ['B', 'A'], { fmt: 'percent' })] },
+    target: { name: 'المنجز من المستهدف', rows: () => [inp('A', 'المستهدف'), inp('B', 'المنجز'), res('C', 'المتبقي لبلوغ المستهدف', 'sub', ['A', 'B']), res('D', 'نسبة الإنجاز', 'pct', ['B', 'A'], { fmt: 'percent' })] },
+    sum: { name: 'مجموع بنود', rows: () => [inp('A', 'البند الأول'), inp('B', 'البند الثاني'), inp('C', 'البند الثالث'), res('D', 'المجموع', 'add', ['A', 'B', 'C'])] },
+  };
+  const defaultCompare = () => ({ labels: { prev: 'السنة الماضية', curr: 'السنة الحالية' }, rows: [{ label: '', prev: '', curr: '', unit: '', better: 'up' }], chart: true, summary: true, decimals: 1 });
   let seq = 0;
   const uid = () => 's' + Date.now().toString(36) + (seq++).toString(36) + Math.random().toString(36).slice(2, 5);
 
@@ -47,6 +60,8 @@
       case 'progress': return { items: (preset && preset.labels ? preset.labels : ['', '']).map((label) => ({ label, value: '' })) };
       case 'timeline': return { items: [{ date: '', title: '', desc: '', status: 'todo' }, { date: '', title: '', desc: '', status: 'todo' }] };
       case 'image': return { src: '', caption: '', fit: 'contain', height: 220 };
+      case 'calc': return { style: 'table', rows: CALC_RECIPES[(preset && preset.recipe) || 'budget'].rows() };
+      case 'compare': return defaultCompare();
       case 'callout': return { tone: 'info', text: '' };
       default: return {};
     }
@@ -73,6 +88,7 @@
       sections: [
         sec('text', 'كلمة رئيس مجلس الإدارة', 'اكتب كلمة قصيرة تلخص مسيرة العام ورؤية المرحلة القادمة.', { sample: '<p>شهد هذا العام نمواً ملحوظاً في برامج الجمعية ومستفيديها، ونتطلع لمزيد من العطاء في العام القادم.</p>' }),
         sec('kpi', 'أبرز الأرقام', 'أدخل أهم الأرقام الرئيسية للعام مع نسبة تغيّرها عن العام السابق.', { labels: ['المستفيدون', 'البرامج', 'المتطوعون', 'الشراكات'], sample: { style: 'cards', items: [K('المستفيدون', '12,450', '+18%', 'pilgrims'), K('البرامج', '34', '+6%', 'mushaf'), K('المتطوعون', '860', '+12%', 'hospitality'), K('الشراكات', '27', '+4%', 'madinah')] } }),
+        sec('compare', 'مقارنة بالعام الماضي', 'أدخل قيمة كل بند في العام الماضي والحالي وستظهر نسبة الارتفاع أو الانخفاض تلقائياً.', { sample: { labels: { prev: 'العام الماضي', curr: 'العام الحالي' }, rows: [{ label: 'المستفيدون', prev: '10500', curr: '12450', unit: '', better: 'up' }, { label: 'المتطوعون', prev: '760', curr: '860', unit: '', better: 'up' }, { label: 'تكلفة التشغيل', prev: '1250000', curr: '1180000', unit: 'ريال', better: 'down' }], chart: true, summary: true, decimals: 1 } }),
         sec('chart', 'نمو المستفيدين الشهري', 'أدخل عدد المستفيدين لكل شهر أو ربع.', { kind: 'area', width: 'half', sample: { kind: 'area', unit: '', data: [{ label: 'الربع 1', value: '2400' }, { label: 'الربع 2', value: '3100' }, { label: 'الربع 3', value: '3300' }, { label: 'الربع 4', value: '3650' }] } }),
         sec('chart', 'توزيع الإنفاق على البرامج', 'أدخل نسبة أو مبلغ كل برنامج.', { kind: 'donut', width: 'half', sample: { kind: 'donut', unit: '', data: [{ label: 'الرعاية', value: '45' }, { label: 'التعليم', value: '25' }, { label: 'الصحة', value: '20' }, { label: 'أخرى', value: '10' }] } }),
         sec('timeline', 'محطات العام', 'اذكر أهم المحطات والإنجازات مرتبة زمنياً.', { sample: { items: [{ date: 'يناير', title: 'إطلاق الخطة السنوية', desc: '', status: 'done' }, { date: 'يونيو', title: 'اعتماد الشراكة الاستراتيجية', desc: '', status: 'done' }, { date: 'ديسمبر', title: 'ختام العام وتقييم الأثر', desc: '', status: 'active' }] } }),
@@ -110,6 +126,7 @@
       sampleTitle: 'تقرير الأداء', sampleSub: 'مؤشرات الأداء الرئيسية',
       sections: [
         sec('kpi', 'المؤشرات الرئيسية', 'أدخل أهم مؤشرات الأداء مع تغيّرها.', { labels: ['مؤشر 1', 'مؤشر 2', 'مؤشر 3', 'مؤشر 4'], sample: { style: 'highlights', items: [K('رضا المستفيدين', '94%', '+3%'), K('زمن الاستجابة', '2.1 ساعة', '-12%'), K('تحقيق الأهداف', '88%', '+6%'), K('كفاءة التشغيل', '91%', '+2%')] } }),
+        sec('compare', 'مقارنة بالفترة السابقة', 'أدخل قيمة المؤشر في الفترة السابقة والحالية لتظهر نسبة التغيّر.', { sample: { labels: { prev: 'الربع السابق', curr: 'الربع الحالي' }, rows: [{ label: 'رضا المستفيدين', prev: '90', curr: '94', unit: '%', better: 'up' }, { label: 'زمن الاستجابة (ساعة)', prev: '2.4', curr: '2.1', unit: '', better: 'down' }, { label: 'كفاءة التشغيل', prev: '89', curr: '91', unit: '%', better: 'up' }], chart: true, summary: true, decimals: 1 } }),
         sec('chart', 'الأداء مقابل المستهدف', 'أدخل القيمة الفعلية لكل فترة.', { kind: 'bar', width: 'half', sample: { kind: 'bar', unit: '', data: [{ label: 'يناير', value: '70' }, { label: 'فبراير', value: '78' }, { label: 'مارس', value: '85' }, { label: 'أبريل', value: '88' }] } }),
         sec('chart', 'اتجاه الأداء', 'أدخل القيم بالترتيب الزمني.', { kind: 'line', width: 'half', sample: { kind: 'line', unit: '', data: [{ label: 'يناير', value: '70' }, { label: 'فبراير', value: '78' }, { label: 'مارس', value: '85' }, { label: 'أبريل', value: '88' }] } }),
         sec('progress', 'تحقق الأهداف', 'أدخل نسبة تحقق كل هدف.', { labels: ['الهدف 1', 'الهدف 2', 'الهدف 3'] }),
@@ -124,6 +141,7 @@
       sections: [
         sec('text', 'نبذة عن المشروع', 'ما المشروع؟ وما هدفه والجهة المستفيدة؟', { sample: '<p>مشروع لتطوير الخدمات الرقمية للمستفيدين خلال عام.</p>' }),
         sec('kpi', 'مؤشرات المشروع', 'الحالة، نسبة الإنجاز، الميزانية.', { labels: ['الحالة', 'نسبة الإنجاز', 'الميزانية المصروفة'], sample: { style: 'cards', items: [K('الحالة', 'يسير وفق الخطة', ''), K('نسبة الإنجاز', '68%', '+8%'), K('الميزانية المصروفة', '52%', '')] } }),
+        sec('calc', 'الموقف المالي للمشروع', 'أدخل التبرعات وما نُفّذ منها، ويُحسب المتبقي ونسبة التنفيذ تلقائياً.', { recipe: 'budget', sample: { style: 'table', rows: [{ key: 'A', label: 'التبرعات', kind: 'input', value: '500000', unit: 'ريال', fmt: 'number' }, { key: 'B', label: 'المنفّذ', kind: 'input', value: '320000', unit: 'ريال', fmt: 'number' }, { key: 'C', label: 'المتبقي', kind: 'calc', op: 'sub', args: ['A', 'B'], formula: '', unit: 'ريال', fmt: 'number' }, { key: 'D', label: 'نسبة التنفيذ', kind: 'calc', op: 'pct', args: ['B', 'A'], formula: '', unit: '', fmt: 'percent' }] } }),
         sec('timeline', 'المراحل والمعالم', 'اذكر المراحل وحالة كل مرحلة.', { sample: { items: [{ date: 'الربع 1', title: 'التخطيط', desc: '', status: 'done' }, { date: 'الربع 2', title: 'التنفيذ', desc: '', status: 'active' }, { date: 'الربع 3', title: 'الإطلاق', desc: '', status: 'todo' }] } }),
         sec('table', 'المهام', 'سجّل مهام المشروع ومن المسؤول عن كل مهمة وحالتها.', { headers: ['المهمة', 'المسؤول', 'الحالة', 'الإنجاز'] }),
         sec('table', 'المخاطر والعوائق', 'ما المخاطر؟ وما إجراء المعالجة؟', { headers: ['الخطر', 'الأثر', 'إجراء المعالجة'] }),
@@ -162,6 +180,8 @@
       sampleTitle: 'التقرير المالي', sampleSub: 'الإيرادات والمصروفات',
       sections: [
         sec('kpi', 'الملخص المالي', 'أدخل الإيرادات والمصروفات والفائض.', { labels: ['الإيرادات', 'المصروفات', 'الفائض'], sample: { style: 'cards', items: [K('الإيرادات', '4.8M', '+12%'), K('المصروفات', '4.1M', '+5%'), K('الفائض', '0.7M', '+31%')] } }),
+        sec('calc', 'رصيد الميزانية', 'أدخل المعتمد والمصروف ويُحسب المتبقي ونسبة الصرف.', { recipe: 'budget', sample: { style: 'table', rows: [{ key: 'A', label: 'الميزانية المعتمدة', kind: 'input', value: '4800000', unit: 'ريال', fmt: 'number' }, { key: 'B', label: 'المصروف الفعلي', kind: 'input', value: '4100000', unit: 'ريال', fmt: 'number' }, { key: 'C', label: 'المتبقي', kind: 'calc', op: 'sub', args: ['A', 'B'], formula: '', unit: 'ريال', fmt: 'number' }, { key: 'D', label: 'نسبة الصرف', kind: 'calc', op: 'pct', args: ['B', 'A'], formula: '', unit: '', fmt: 'percent' }] } }),
+        sec('compare', 'مقارنة بالعام السابق', 'قارن الإيرادات والمصروفات بين العامين. المصروفات: الانخفاض أفضل.', { sample: { labels: { prev: 'العام السابق', curr: 'العام الحالي' }, rows: [{ label: 'الإيرادات', prev: '4300000', curr: '4800000', unit: 'ريال', better: 'up' }, { label: 'المصروفات', prev: '3900000', curr: '4100000', unit: 'ريال', better: 'down' }], chart: true, summary: true, decimals: 1 } }),
         sec('chart', 'الإيرادات الشهرية', 'أدخل الإيراد لكل شهر.', { kind: 'bar', width: 'half' }),
         sec('chart', 'توزيع المصروفات', 'أدخل مصروف كل بند.', { kind: 'donut', width: 'half' }),
         sec('table', 'الميزانية مقابل الفعلي', 'قارن المعتمد بالفعلي لكل بند.', { headers: ['البند', 'المعتمد', 'الفعلي', 'الفرق'] }),
@@ -188,6 +208,7 @@
       sampleTitle: 'تقرير البرامج والخدمات', sampleSub: 'الأداء والمستفيدون',
       sections: [
         sec('kpi', 'حصاد البرامج', 'عدد البرامج والمستفيدين والساعات.', { labels: ['البرامج المنفذة', 'المستفيدون', 'ساعات العمل'] }),
+        sec('compare', 'مقارنة بالعام الماضي', 'قارن مستفيدي وبرامج هذا العام بالعام الماضي.', { sample: { labels: { prev: 'العام الماضي', curr: 'العام الحالي' }, rows: [{ label: 'عدد المستفيدين', prev: '8200', curr: '9650', unit: '', better: 'up' }, { label: 'البرامج المنفذة', prev: '22', curr: '27', unit: '', better: 'up' }], chart: true, summary: true, decimals: 1 } }),
         sec('chart', 'المستفيدون حسب البرنامج', 'أدخل عدد المستفيدين لكل برنامج.', { kind: 'bar', width: 'half' }),
         sec('chart', 'توزيع المستفيدين', 'أدخل التوزيع حسب الفئة.', { kind: 'donut', width: 'half' }),
         sec('table', 'تفاصيل البرامج', 'اذكر كل برنامج وتاريخه وعدد مستفيديه.', { headers: ['البرنامج', 'التاريخ', 'المستفيدون', 'التقييم'] }),
@@ -279,5 +300,5 @@
     return r;
   }
 
-  return { PALETTES, BLOCKS, TYPES, TEMPLATES, CATEGORIES, DEFAULT_OPTIONS, byId, uid, emptyContent, makeSection, createReport, migrate };
+  return { CALC_RECIPES, defaultCompare, PALETTES, BLOCKS, TYPES, TEMPLATES, CATEGORIES, DEFAULT_OPTIONS, byId, uid, emptyContent, makeSection, createReport, migrate };
 });

@@ -147,7 +147,7 @@ async function toPng(img, w, h, bg) { const c = document.createElement('canvas')
 
 function chartCss(ctx) {
   const A = '#' + ctx.a, X = '#' + ctx.x, D = '#' + ctx.d;
-  return `text{font-family:Tahoma,Arial,sans-serif}.gl{stroke:#e3e8ee}.ax{stroke:#b8c2cd;stroke-width:1.2}.v{font-size:12px;font-weight:600;fill:#17212c}.l{font-size:12px;fill:#4a5968}.big{font-size:26px;font-weight:700;fill:#17212c}.bar.s0{fill:${A}}.area.s0{fill:${X};opacity:.28}.ln.s0{fill:none;stroke:${A};stroke-width:3;stroke-linejoin:round}.dot.s0{fill:#fff;stroke:${A};stroke-width:3}.arc.s0{stroke:${A}}.arc.s1{stroke:${X}}.arc.s2{stroke:${D}}.arc.s3{stroke:#e0b04a}.arc.s4{stroke:#d96c4f}.arc.s5{stroke:#7d93a8}`;
+  return `text{font-family:Tahoma,Arial,sans-serif}.gl{stroke:#e3e8ee}.ax{stroke:#b8c2cd;stroke-width:1.2}.v{font-size:12px;font-weight:600;fill:#17212c}.l{font-size:12px;fill:#4a5968}.big{font-size:26px;font-weight:700;fill:#17212c}.bar.s0{fill:${A}}.bar.s1{fill:#9db8b2}.area.s0{fill:${X};opacity:.28}.ln.s0{fill:none;stroke:${A};stroke-width:3;stroke-linejoin:round}.dot.s0{fill:#fff;stroke:${A};stroke-width:3}.arc.s0{stroke:${A}}.arc.s1{stroke:${X}}.arc.s2{stroke:${D}}.arc.s3{stroke:#e0b04a}.arc.s4{stroke:#d96c4f}.arc.s5{stroke:#7d93a8}`;
 }
 async function chartXml(ctx, c) {
   const html = RBR.chartSvg(c, (v) => RBR.escRaw(ctx.map(String(v))));
@@ -171,6 +171,45 @@ async function svgPathToPng(path) {
   const img = await loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
   return { bytes: await toPng(img, Math.round(w * k), Math.round(h * k), null), w: w * k, h: h * k };
 }
+async function svgPara(ctx, svgStr, widthCm) {
+  const vb = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/); const w = +vb[1], h = +vb[2];
+  const svg = svgStr.replace('<svg ', `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" style="direction:ltr" `).replace('>', `><style>${chartCss(ctx)}</style>`);
+  const img = await loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
+  const bytes = await toPng(img, w * 2, h * 2, '#ffffff');
+  const widthEmu = Math.round(widthCm * 360000);
+  return para(drawing(ctx, addMedia(ctx, bytes, 'png'), widthEmu, Math.round(widthEmu * h / w), 'رسم بياني'), { after: 120, line: 240 });
+}
+
+function calcXml(ctx, c) {
+  const RBC = window.RBC, ev = RBC.evalCalc(c);
+  const rows = (c.rows || []).filter((x) => x && (x.label || (x.kind !== 'calc' && RBC.toNum(x.value) !== null)));
+  if (!rows.length) return '';
+  const W = [Math.round(CONTENT_W * 0.62), CONTENT_W - Math.round(CONTENT_W * 0.62)];
+  return table(rows.map((x) => { const res = x.kind === 'calc', err = ev.errors[x.key]; const fill = res ? ctx.s : null;
+    return tr([cell(para(run(ctx, x.label, { b: res, size: res ? 12 : 11, color: res ? ctx.d : null }), { after: 0, line: 320 }), W[0], { fill }),
+      cell(para(run(ctx, err ? 'خطأ' : RBC.fmtRow(ev.values[x.key], x), { b: true, size: res ? 13 : 11.5, color: err ? 'B3382A' : res ? ctx.d : null }), { after: 0, line: 320 }), W[1], { fill })]); }), W);
+}
+
+async function compareXml(ctx, c) {
+  const RBC = window.RBC, rows = RBC.compareRows(c), L = c.labels || {}, d = c.decimals == null ? 1 : c.decimals;
+  if (!rows.length) return '';
+  const W = [Math.round(CONTENT_W * 0.28), Math.round(CONTENT_W * 0.18), Math.round(CONTENT_W * 0.18), Math.round(CONTENT_W * 0.18), 0]; W[4] = CONTENT_W - W[0] - W[1] - W[2] - W[3];
+  const hc = (t, w) => cell(para(run(ctx, t, { b: true, color: 'FFFFFF', size: 10.5 }), { after: 0, line: 300 }), w, { fill: ctx.a });
+  const unit = (r, v) => RBC.fmtNum(v) + (r.unit ? ' ' + r.unit : '');
+  const head = tr([hc('البند', W[0]), hc(L.prev || '', W[1]), hc(L.curr || '', W[2]), hc('الفرق', W[3]), hc('التغيّر', W[4])], { header: true });
+  const body = rows.map((r, i) => {
+    const col = r.good === true ? '1F7A5C' : r.good === false ? 'B3382A' : '647385', fill = i % 2 ? ctx.s : null;
+    const chg = r.dir === 'na' ? '—' : r.dir === 'flat' ? '■ 0%' : (r.dir === 'up' ? '▲ ' : '▼ ') + (r.pct === null ? 'جديد' : RBC.fmtNum(Math.abs(r.pct), d) + '%');
+    const diff = r.change === null ? '—' : (r.change > 0 ? '+' : r.change < 0 ? '−' : '') + unit(r, Math.abs(r.change));
+    const tc = (t, w, o) => cell(para(run(ctx, t, Object.assign({ size: 10.5 }, o || {})), { after: 0, line: 300 }), w, { fill });
+    return tr([tc(r.label, W[0], { b: true }), tc(r.prev === null ? '—' : unit(r, r.prev), W[1]), tc(r.curr === null ? '—' : unit(r, r.curr), W[2]), tc(diff, W[3]), tc(chg, W[4], { b: true, color: col })]);
+  });
+  let out = table([head, ...body], W);
+  if (c.chart !== false) { const svg = window.RBR.compareSvg(c, (v) => window.RBR.escRaw(ctx.map(String(v)))); if (svg) out += await svgPara(ctx, svg, 15); }
+  if (c.summary !== false) out += rows.map((r) => RBC.compareSentence(r, L)).filter(Boolean).map((t) => para(run(ctx, '• ' + t, { size: 10.5, color: '3A4755' }), { after: 40, line: 320 })).join('');
+  return out;
+}
+
 async function imageXml(ctx, c) {
   if (!c.src) return '';
   if (c.src.startsWith('/')) {
@@ -218,6 +257,8 @@ export async function exportDocx(report, config, fileName, workflow) {
       case 'kpi': body.push(kpiXml(ctx, c)); break;
       case 'chart': body.push(await chartXml(ctx, c)); break;
       case 'progress': body.push(progressXml(ctx, c)); break;
+      case 'calc': body.push(calcXml(ctx, c)); break;
+      case 'compare': body.push(await compareXml(ctx, c)); break;
       case 'timeline': body.push(timelineXml(ctx, c)); break;
       case 'image': body.push(await imageXml(ctx, c)); break;
       case 'callout': body.push(calloutXml(ctx, c)); break;

@@ -115,3 +115,16 @@ body.thumb { overflow: hidden; background: #fff; } body.thumb .pages { padding: 
 .stamp.wait { border-color: #c98a00; background: #fdf3dc; color: #6b4a0c; } .stamp.ret { border-color: #b3382a; background: #fbeceb; color: #7a241a; }
 .ribbon.ok { background: #1f7a5c; color: #fff; }
 .vb-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* حسابات تلقائية ومقارنات */
+.tbl.calc th { background: none; color: #17212c; font-weight: 500; padding: 8px 12px; border-top: 1px solid #e3e8ee; text-align: right; } .tbl.calc tr:first-child th, .tbl.calc tr:first-child td { border-top: 0; }
+.tbl.calc td.num { text-align: left; font-weight: 600; padding: 8px 14px; border-top: 1px solid #e3e8ee; font-size: 14px; }
+.tbl.calc tr.res th, .tbl.calc tr.res td { background: var(--s); color: var(--d); font-weight: 700; } .tbl.calc tr.res td { font-size: 15px; }
+.cerr { color: #b3382a; font-weight: 700; }
+.kpis.cards .kpi.res { background: var(--a); border-top-color: var(--d); } .kpis.cards .kpi.res .kl { color: rgba(255, 255, 255, .85); } .kpis.cards .kpi.res .kv { color: #fff; }
+.kpis.cards .kpi.res.badres { background: #b3382a; border-top-color: #7a241a; }
+.cmp td.ctr, .cmp th { text-align: center; } .cmp th:first-child, .cmp th[scope='row'] { text-align: right; } .cmp th[scope='row'] { font-weight: 600; background: none; color: #17212c; }
+.chg { font-weight: 700; white-space: nowrap; } .chg.good { color: #1f7a5c; } .chg.bad { color: #b3382a; } .chg.flat { color: #647385; }
+.kpis.cards .kpi.res .chg { color: #fff; }
+.cmpchart { margin-top: 4mm; } .bar.s1 { fill: #9db8b2; }
+.cmp-sum { margin: 3mm 0 0; padding-inline-start: 20px; font-size: 13px; color: #3a4755; line-height: 1.9; }

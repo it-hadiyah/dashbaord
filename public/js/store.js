@@ -152,6 +152,8 @@ export function isEmpty(s) {
     case 'progress': return !c.items.some((i) => i.label || i.value);
     case 'timeline': return !c.items.some((i) => i.title || i.date);
     case 'image': return !c.src;
+    case 'calc': return !window.RBC.calcHasInput(c);
+    case 'compare': return !window.RBC.compareHasData(c);
     case 'callout': return !String(c.text || '').trim();
     default: return false;
   }

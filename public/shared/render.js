@@ -1,9 +1,9 @@
 /* مولّد التقرير المشترك بين المتصفح (للمعاينة) والخادم (للصفحة النهائية).
    يحوّل بيانات التقرير إلى HTML مصدر، ثم يقوم paginate.js بتقسيمه إلى صفحات A4. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./templates.js'));
-  else root.RBR = factory(root.RBT);
-})(typeof self !== 'undefined' ? self : this, function (T) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./templates.js'), require('./calc.js'));
+  else root.RBR = factory(root.RBT, root.RBC);
+})(typeof self !== 'undefined' ? self : this, function (T, C) {
   'use strict';
 
   const SERIES = ['#1f7a5c', '#3cc79a', '#145a43', '#e0b04a', '#d96c4f', '#7d93a8'];
@@ -97,6 +97,21 @@
     return `<div class="donut"><svg viewBox="0 0 200 200" role="img">${arcs}<text class="big" x="100" y="108" text-anchor="middle">${E(centre)}</text></svg><ul class="legend">${legend}</ul></div>`;
   }
 
+  // رسم أعمدة مزدوجة (الفترة السابقة مقابل الحالية)
+  function compareSvg(c, E) {
+    const items = C.compareRows(c).filter((r) => r.dir !== 'na').slice(0, 8);
+    if (!items.length) return '';
+    const L = c.labels || {}, W = 480, H = 270, p = { l: 14, r: 14, t: 44, b: 40 }, iw = W - p.l - p.r, ih = H - p.t - p.b;
+    const max = Math.max(...items.flatMap((r) => [Math.max(r.prev, 0), Math.max(r.curr, 0)]), 1), step = iw / items.length, bw = Math.min(40, step * 0.34);
+    const bars = items.map((r, i) => {
+      const cx = p.l + i * step + step / 2;
+      const one = (v, x, cls) => { const h = (Math.max(v, 0) / max) * ih, y = p.t + ih - h; return `<rect class="bar ${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3"/><text class="v" x="${(x + bw / 2).toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle">${E(C.fmtNum(v))}</text>`; };
+      return one(r.prev, cx - bw - 2, 's1') + one(r.curr, cx + 2, 's0') + `<text class="l" x="${cx.toFixed(1)}" y="${H - 16}" text-anchor="middle">${E(short(r.label, 14))}</text>`;
+    }).join('');
+    const legend = `<rect class="bar s1" x="${W - 150}" y="8" width="12" height="12" rx="2"/><text class="l" x="${W - 154}" y="19" text-anchor="end">${E(short(L.prev || 'السابقة', 16))}</text><rect class="bar s0" x="${W - 14 - 12}" y="8" width="12" height="12" rx="2"/><text class="l" x="${W - 30}" y="19" text-anchor="end">${E(short(L.curr || 'الحالية', 16))}</text>`;
+    return `<svg viewBox="0 0 ${W} ${H}" role="img">${legend}${[0.5, 1].map((q) => `<line class="gl" x1="${p.l}" x2="${W - p.r}" y1="${p.t + ih - ih * q}" y2="${p.t + ih - ih * q}"/>`).join('')}<line class="ax" x1="${p.l}" x2="${W - p.r}" y1="${p.t + ih}" y2="${p.t + ih}"/>${bars}</svg>`;
+  }
+
   /* ---------- أقسام التقرير ---------- */
   function isEmptySection(s) {
     const c = s.content;
@@ -109,6 +124,8 @@
       case 'progress': return !(c && (c.items || []).some((i) => i && (i.label || i.value)));
       case 'timeline': return !(c && (c.items || []).some((i) => i && (i.title || i.date)));
       case 'image': return !(c && c.src);
+      case 'calc': return !C.calcHasInput(c);
+      case 'compare': return !C.compareHasData(c);
       case 'callout': return !(c && String(c.text || '').trim());
       case 'pagebreak': return false;
       default: return true;
@@ -159,6 +176,32 @@
             `<li class="st-${['done', 'active', 'todo'].includes(i.status) ? i.status : 'todo'}"><span class="td">${E(i.date)}</span><div><b>${E(i.title)}</b>${i.desc ? `<p>${E(i.desc)}</p>` : ''}</div></li>`).join('')}</ol>`;
         case 'image':
           return SAFE_IMG.test(c.src || '') ? `<figure class="img"><img src="${c.src}" alt="${E(c.caption || s.title || '')}" style="max-height:${Math.max(60, Math.min(600, parseInt(c.height, 10) || 220))}px;object-fit:${c.fit === 'cover' ? 'cover' : 'contain'}">${c.caption ? `<figcaption>${E(c.caption)}</figcaption>` : ''}</figure>` : '';
+        case 'calc': {
+          const ev = C.evalCalc(c), rows = (c.rows || []).filter((x) => x && (x.label || (x.kind !== 'calc' && C.toNum(x.value) !== null)));
+          const val = (x) => (ev.errors[x.key] ? '<span class="cerr">خطأ</span>' : `<bdi>${E(C.fmtRow(ev.values[x.key], x))}</bdi>`);
+          if (c.style === 'cards') return `<div class="kpis cards calc-cards">${rows.map((x) => `<div class="kpi${x.kind === 'calc' ? ' res' : ''}"><span class="kl">${E(x.label)}</span><b class="kv">${val(x)}</b></div>`).join('')}</div>`;
+          return `<div class="tw"><table class="tbl calc"><tbody>${rows.map((x) => `<tr class="${x.kind === 'calc' ? 'res' : 'inp'}"><th scope="row">${E(x.label)}</th><td class="num">${val(x)}</td></tr>`).join('')}</tbody></table></div>`;
+        }
+        case 'compare': {
+          const L = c.labels || {}, d = c.decimals == null ? 1 : c.decimals, rows = C.compareRows(c);
+          const cell = (r) => {
+            if (r.dir === 'na') return '<span class="chg flat">—</span>';
+            const arrow = r.dir === 'up' ? '▲' : r.dir === 'down' ? '▼' : '■', cls = r.good === true ? 'good' : r.good === false ? 'bad' : 'flat';
+            return `<span class="chg ${cls}"><span aria-hidden="true">${arrow}</span> <bdi>${r.dir === 'flat' ? E('0%') : r.pct === null ? E('جديد') : E(C.fmtNum(Math.abs(r.pct), d) + '%')}</bdi></span>`;
+          };
+          const unit = (r, v) => `<bdi>${E(C.fmtNum(v) + (r.unit ? ' ' + r.unit : ''))}</bdi>`;
+          const sumLines = c.summary !== false ? rows.map((r) => C.compareSentence(r, L)).filter(Boolean) : [];
+          let out;
+          if (rows.length === 1 && rows[0].dir !== 'na') {
+            const r = rows[0];
+            out = `<div class="kpis cards cmp-cards"><div class="kpi"><span class="kl">${E(L.prev)}</span><b class="kv">${unit(r, r.prev)}</b></div><div class="kpi"><span class="kl">${E(L.curr)}</span><b class="kv">${unit(r, r.curr)}</b></div><div class="kpi res ${r.good === false ? 'badres' : ''}"><span class="kl">${E(r.label || 'التغيّر')}</span><b class="kv">${cell(r)}</b></div></div>`;
+          } else {
+            out = `<div class="tw"><table class="tbl zebra cmp"><thead><tr><th>${E('البند')}</th><th>${E(L.prev)}</th><th>${E(L.curr)}</th><th>${E('الفرق')}</th><th>${E('التغيّر')}</th></tr></thead><tbody>${rows.map((r) => `<tr><th scope="row">${E(r.label)}</th><td class="ctr">${r.prev === null ? '—' : unit(r, r.prev)}</td><td class="ctr">${r.curr === null ? '—' : unit(r, r.curr)}</td><td class="ctr">${r.change === null ? '—' : `<bdi>${E((r.change > 0 ? '+' : r.change < 0 ? '−' : '') + C.fmtNum(Math.abs(r.change)) + (r.unit ? ' ' + r.unit : ''))}</bdi>`}</td><td class="ctr">${cell(r)}</td></tr>`).join('')}</tbody></table></div>`;
+          }
+          if (c.chart !== false && rows.some((r) => r.dir !== 'na') && !(rows.length === 1 && c.chart === 'auto')) out += `<figure class="chart cmpchart">${compareSvg(c, E)}</figure>`;
+          if (sumLines.length) out += `<ul class="cmp-sum">${sumLines.map((l) => `<li>${E(l)}</li>`).join('')}</ul>`;
+          return out;
+        }
         case 'callout': return `<div class="call tone-${['info', 'success', 'warn'].includes(c.tone) ? c.tone : 'info'}"><p>${E(c.text).replace(/\r?\n/g, '<br>')}</p></div>`;
         default: return '';
       }
@@ -267,5 +310,5 @@
 </html>`;
   }
 
-  return { sanitize, plain, chartSvg, isEmptySection, makeRenderer, renderSource, renderPage, escRaw, num, fmt, SAFE_IMG, SLUG };
+  return { compareSvg, sanitize, plain, chartSvg, isEmptySection, makeRenderer, renderSource, renderPage, escRaw, num, fmt, SAFE_IMG, SLUG };
 });

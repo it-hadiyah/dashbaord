@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const T = require('./public/shared/templates.js');
+const C = require('./public/shared/calc.js');
 const R = require('./public/shared/render.js');
 const cfgm = require('./lib/config');
 const auth = require('./lib/auth');
@@ -54,6 +55,21 @@ function cleanContent(type, c) {
       const src = str(c.src, MAX_IMAGE * 1.4);
       return { src: R.SAFE_IMG.test(src) && src.length <= MAX_IMAGE * 1.4 ? src : '', caption: str(c.caption, 300), fit: c.fit === 'cover' ? 'cover' : 'contain', height: Math.max(60, Math.min(600, parseInt(c.height, 10) || 220)) };
     }
+    case 'calc': {
+      const used = new Set(); const rows = [];
+      for (const r of arr(c.rows, 26)) {
+        let key = /^[A-Z]$/.test(String(r && r.key)) && !used.has(r.key) ? r.key : C.nextKey(rows.map((x) => ({ key: x.key })).concat([...used].map((k) => ({ key: k }))));
+        if (!key) break; used.add(key);
+        rows.push({ key, label: str(r && r.label, 120), kind: r && r.kind === 'calc' ? 'calc' : 'input', value: str(r && r.value, 40), unit: str(r && r.unit, 20), fmt: r && r.fmt === 'percent' ? 'percent' : 'number',
+          op: Object.keys(C.OPS).includes(r && r.op) ? r.op : 'sub', args: arr(r && r.args, 12).map(String).filter((a) => /^[A-Z]$/.test(a)), formula: str(r && r.formula, 200) });
+      }
+      return { style: c.style === 'cards' ? 'cards' : 'table', rows };
+    }
+    case 'compare': return {
+      labels: { prev: str(c.labels && c.labels.prev, 60) || 'السنة الماضية', curr: str(c.labels && c.labels.curr, 60) || 'السنة الحالية' },
+      rows: arr(c.rows, 12).map((r) => ({ label: str(r && r.label, 120), prev: str(r && r.prev, 40), curr: str(r && r.curr, 40), unit: str(r && r.unit, 20), better: r && r.better === 'down' ? 'down' : 'up' })),
+      chart: c.chart !== false, summary: c.summary !== false, decimals: [0, 1, 2].includes(c.decimals) ? c.decimals : 1,
+    };
     case 'callout': return { tone: ['info', 'success', 'warn'].includes(c.tone) ? c.tone : 'info', text: str(c.text, 3000) };
     default: return {};
   }

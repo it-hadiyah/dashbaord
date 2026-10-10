@@ -1,5 +1,5 @@
 // محررات الأقسام: لكل نوع قسم واجهة تعبئة مناسبة له
-import { el, btn, iconBtn, toast } from './ui.js';
+import { el, btn, iconBtn, toast, confirmDialog } from './ui.js';
 import { icon } from './icons.js';
 import { edit, store } from './store.js';
 import * as T from './templates.js';
@@ -210,6 +210,150 @@ function imageEditor(s) {
   return wrap;
 }
 
+/* ---------- حسابات تلقائية ---------- */
+function calcEditor(s) {
+  const RBC = window.RBC;
+  const wrap = el('div', { class: 'calc-ed' });
+  let live = {};
+  const rowOf = (x, key) => x.content.rows.find((r) => r.key === key);
+  const refreshLive = () => {
+    const ev = RBC.evalCalc(s.content);
+    s.content.rows.forEach((row) => {
+      const sp = live[row.key]; if (!sp) return;
+      const err = ev.errors[row.key];
+      sp.textContent = err ? '⚠ ' + err : '= ' + RBC.fmtRow(ev.values[row.key], row); sp.classList.toggle('bad', !!err);
+    });
+  };
+  const optText = (r) => `${r.key} — ${r.label || 'بدون اسم'}`;
+
+  function rowCard(row) {
+    const others = () => s.content.rows.filter((r) => r.key !== row.key);
+    const card = el('div', { class: 'crow ' + (row.kind === 'calc' ? 'is-calc' : 'is-input') });
+    const idx = s.content.rows.indexOf(row), last = s.content.rows.length - 1;
+    card.append(el('div', { class: 'crow-head' },
+      el('span', { class: 'ckey', title: 'رمز البند يُستخدم في العمليات' }, row.key),
+      el('input', { type: 'text', value: row.label, placeholder: row.kind === 'calc' ? 'اسم النتيجة، مثل: المتبقي' : 'اسم البند، مثل: التبرعات', 'aria-label': 'اسم البند ' + row.key, oninput: (e) => { upd(s.id, 'cl' + row.key, (x) => { rowOf(x, row.key).label = e.target.value; }); } }),
+      segmented([['input', 'مُدخل'], ['calc', 'محسوب']], row.kind, (v) => { upd(s.id, null, (x) => { const r = rowOf(x, row.key); r.kind = v; if (v === 'calc' && !(r.args || []).length) { r.op = 'sub'; r.args = x.content.rows.filter((q) => q.key !== r.key).slice(0, 2).map((q) => q.key); } }, 'structure'); draw(); }, 'نوع البند'),
+      el('div', { class: 'gact' },
+        iconBtn('up', 'تحريك لأعلى', () => { if (idx > 0) { upd(s.id, null, (x) => { const a = x.content.rows; a.splice(idx - 1, 0, a.splice(idx, 1)[0]); }, 'structure'); draw(); } }),
+        iconBtn('down', 'تحريك لأسفل', () => { if (idx < last) { upd(s.id, null, (x) => { const a = x.content.rows; a.splice(idx + 1, 0, a.splice(idx, 1)[0]); }, 'structure'); draw(); } }),
+        iconBtn('x', 'حذف البند', () => { upd(s.id, null, (x) => { x.content.rows = x.content.rows.filter((r) => r.key !== row.key); x.content.rows.forEach((r) => { r.args = (r.args || []).filter((a) => a !== row.key); }); }, 'structure'); draw(); }, 'danger'))));
+
+    const unitFmt = () => el('div', { class: 'crow-opts' },
+      el('input', { type: 'text', value: row.unit || '', placeholder: 'الوحدة (مثل: ريال)', 'aria-label': 'الوحدة', oninput: (e) => { upd(s.id, 'cu' + row.key, (x) => { rowOf(x, row.key).unit = e.target.value; }); refreshLive(); } }),
+      el('select', { 'aria-label': 'طريقة العرض', onchange: (e) => { upd(s.id, null, (x) => { rowOf(x, row.key).fmt = e.target.value; }); refreshLive(); } }, el('option', { value: 'number', selected: row.fmt !== 'percent' }, 'رقم'), el('option', { value: 'percent', selected: row.fmt === 'percent' }, 'نسبة %')));
+
+    if (row.kind !== 'calc') {
+      card.append(el('div', { class: 'crow-body' },
+        el('input', { type: 'text', inputmode: 'decimal', value: row.value || '', placeholder: 'القيمة، مثل: 500000', 'aria-label': 'قيمة ' + (row.label || row.key), class: 'cval', oninput: (e) => { upd(s.id, 'cv' + row.key, (x) => { rowOf(x, row.key).value = e.target.value; }); refreshLive(); } }), unitFmt()));
+    } else {
+      const body = el('div', { class: 'crow-body col' });
+      const opSel = el('select', { 'aria-label': 'نوع العملية', onchange: (e) => {
+        const op = e.target.value, prevOp = row.op;
+        upd(s.id, null, (x) => {
+          const r = rowOf(x, row.key); r.op = op; const o = x.content.rows.filter((q) => q.key !== r.key).map((q) => q.key);
+          if (op === 'formula') { if (!r.formula) r.formula = (r.args || []).length ? r.args.join(RBC.OPS[prevOp] && prevOp === 'sub' ? ' - ' : prevOp === 'mul' ? ' * ' : prevOp === 'div' || prevOp === 'pct' ? ' / ' : ' + ') : (o.slice(0, 2).join(' - ')); }
+          else {
+            const need = RBC.OPS[op].min; r.args = (r.args || []).filter((a) => o.includes(a));
+            if (RBC.OPS[op].max) r.args = r.args.slice(0, RBC.OPS[op].max);
+            while (r.args.length < need && o.length) { const nxt = o.find((k) => !r.args.includes(k)); if (!nxt) break; r.args.push(nxt); }
+          }
+          if (op === 'pct') r.fmt = 'percent'; else if (prevOp === 'pct' && r.fmt === 'percent') r.fmt = 'number';
+        }, 'structure'); draw();
+      } }, Object.entries(RBC.OPS).map(([k, v]) => el('option', { value: k, selected: row.op === k }, v.name)));
+      body.append(opSel);
+      const argsBox = el('div', { class: 'cargs' });
+      const sel = (i, label) => el('label', { class: 'carg' }, el('span', {}, label), el('select', { 'aria-label': label, onchange: (e) => { upd(s.id, null, (x) => { rowOf(x, row.key).args[i] = e.target.value; }); refreshLive(); } },
+        el('option', { value: '' }, 'اختر بنداً...'), others().map((r) => el('option', { value: r.key, selected: (row.args || [])[i] === r.key }, optText(r)))));
+      if (row.op === 'formula') {
+        const f = el('input', { type: 'text', dir: 'ltr', style: 'text-align:left', value: row.formula || '', placeholder: 'مثال: (A - B) * 15%', 'aria-label': 'الصيغة', oninput: (e) => { upd(s.id, 'cf' + row.key, (x) => { rowOf(x, row.key).formula = e.target.value; }); refreshLive(); } });
+        argsBox.append(f, el('p', { class: 'tip' }, 'استخدم رموز البنود: ' + others().map((r) => `${r.key} = ${r.label || 'بدون اسم'}`).join('  ·  ') + '. العمليات: + − × ÷ % وأقواس ( ).'));
+      } else if (RBC.OPS[row.op] && RBC.OPS[row.op].max) {
+        const lab = row.op === 'pct' ? ['الجزء (البسط)', 'الكل (المقام)'] : ['المقسوم', 'المقسوم عليه'];
+        argsBox.append(sel(0, lab[0]), sel(1, lab[1]));
+      } else {
+        (row.args || []).forEach((a, i) => {
+          const n = (row.args || []).length, min = RBC.OPS[row.op].min;
+          argsBox.append(el('div', { class: 'carg-row' }, sel(i, row.op === 'sub' ? (i === 0 ? 'من' : 'ناقص') : row.op === 'mul' ? (i === 0 ? 'البند' : 'ضرب') : row.op === 'avg' ? 'بند' : (i === 0 ? 'البند' : 'زائد')),
+            n > min ? iconBtn('x', 'إزالة البند من العملية', () => { upd(s.id, null, (x) => { rowOf(x, row.key).args.splice(i, 1); }, 'structure'); draw(); }, 'danger') : null));
+        });
+        argsBox.append(btn('إضافة بند للعملية', { icon: 'plus', cls: 'sm ghost', onclick: () => { const o = others().map((r) => r.key).find((k) => !(row.args || []).includes(k)); if (!o) { toast('لا توجد بنود أخرى لإضافتها', { tone: 'err' }); return; } upd(s.id, null, (x) => { rowOf(x, row.key).args.push(o); }, 'structure'); draw(); } }));
+      }
+      body.append(argsBox, unitFmt());
+      card.append(body);
+    }
+    const sp = el('div', { class: 'calc-res', 'aria-live': 'polite' }); live[row.key] = sp; card.append(sp);
+    return card;
+  }
+
+  function draw() {
+    live = {};
+    const rows = s.content.rows;
+    const recipe = el('select', { 'aria-label': 'ابدأ من مثال جاهز', class: 'recipe', onchange: async (e) => {
+      const id = e.target.value; e.target.value = ''; if (!id) return;
+      if (rows.some((r) => r.kind !== 'calc' && String(r.value || '').trim()) && !(await confirmDialog({ title: 'استبدال البنود؟', text: 'سيتم استبدال البنود الحالية بالمثال المختار.', ok: 'استبدال' }))) return;
+      upd(s.id, null, (x) => { x.content.rows = window.RBT.CALC_RECIPES[id].rows(); }, 'structure'); draw();
+    } }, el('option', { value: '' }, 'ابدأ من مثال جاهز...'), Object.entries(window.RBT.CALC_RECIPES).map(([k, v]) => el('option', { value: k }, v.name)));
+    wrap.replaceChildren(
+      el('div', { class: 'hint', role: 'note' }, el('span', { html: icon('calculator', 16) }), el('span', {}, 'أضف بنوداً «مُدخلة» (أرقامك)، وبنوداً «محسوبة» تُحسب تلقائياً منها: المتبقي، النسبة، المجموع... وتتحدث النتيجة فور تغيير أي رقم.')),
+      field('شكل العرض في التقرير', segmented([['table', 'جدول'], ['cards', 'بطاقات']], s.content.style || 'table', (v) => upd(s.id, null, (x) => { x.content.style = v; }), 'شكل العرض')),
+      recipe,
+      ...rows.map(rowCard),
+      el('div', { class: 'btns' },
+        btn('إضافة بند مُدخل', { icon: 'plus', cls: 'sm ghost', onclick: () => { const k = RBC.nextKey(rows); if (!k) { toast('الحد الأقصى 26 بنداً', { tone: 'err' }); return; } upd(s.id, null, (x) => x.content.rows.push({ key: k, label: '', kind: 'input', value: '', unit: '', fmt: 'number' }), 'structure'); draw(); } }),
+        btn('إضافة نتيجة محسوبة', { icon: 'calculator', cls: 'sm', onclick: () => { const k = RBC.nextKey(rows); if (!k) { toast('الحد الأقصى 26 بنداً', { tone: 'err' }); return; } upd(s.id, null, (x) => { const o = x.content.rows.map((r) => r.key); x.content.rows.push({ key: k, label: '', kind: 'calc', op: 'sub', args: o.slice(0, 2), formula: '', unit: '', fmt: 'number' }); }, 'structure'); draw(); } })));
+    refreshLive();
+  }
+  draw();
+  return wrap;
+}
+
+/* ---------- مقارنة بين فترتين ---------- */
+function compareEditor(s) {
+  const RBC = window.RBC;
+  const wrap = el('div', { class: 'cmp-ed' });
+  let live = [], heads = {};
+  const rowAt = (x, i) => x.content.rows[i];
+  const refreshLive = () => s.content.rows.forEach((row, i) => {
+    const sp = live[i]; if (!sp) return;
+    const r = RBC.compareRows({ rows: [row] })[0], d = s.content.decimals == null ? 1 : s.content.decimals;
+    if (!r || r.dir === 'na') { sp.textContent = 'أدخل القيمتين'; sp.className = 'cmp-res muted'; return; }
+    const arrow = r.dir === 'up' ? '▲' : r.dir === 'down' ? '▼' : '■';
+    sp.textContent = r.dir === 'flat' ? '■ لا تغيّر' : `${arrow} ${r.pct === null ? 'جديد (السابق صفر)' : RBC.fmtNum(Math.abs(r.pct), d) + '%'}  ·  ${r.change > 0 ? '+' : '−'}${RBC.fmtNum(Math.abs(r.change))}`;
+    sp.className = 'cmp-res ' + (r.good === true ? 'good' : r.good === false ? 'bad' : 'flat');
+  });
+  function draw() {
+    live = []; const L = s.content.labels, rows = s.content.rows;
+    const lab = (k, ph) => el('input', { type: 'text', value: L[k], placeholder: ph, 'aria-label': ph, oninput: (e) => { upd(s.id, 'cl' + k, (x) => { x.content.labels[k] = e.target.value; }); if (heads[k]) heads[k].textContent = e.target.value || ph; } });
+    heads = { prev: el('span', {}, L.prev || 'الفترة السابقة'), curr: el('span', {}, L.curr || 'الفترة الحالية') };
+    wrap.replaceChildren(
+      el('div', { class: 'hint', role: 'note' }, el('span', { html: icon('compare', 16) }), el('span', {}, 'أدخل قيمة كل بند في الفترتين، وتظهر نسبة الارتفاع أو الانخفاض والفرق تلقائياً. إذا كان الانخفاض هو الأفضل (كالمصروفات) اختر ذلك للبند ليُلوَّن بشكل صحيح.')),
+      el('div', { class: 'two' }, field('اسم الفترة السابقة', lab('prev', 'السنة الماضية')), field('اسم الفترة الحالية', lab('curr', 'السنة الحالية'))),
+      el('div', { class: 'cmp-grid cmp-head' }, el('span', {}, 'البند'), heads.prev, heads.curr, el('span', {}, 'الوحدة'), el('span')),
+      ...rows.map((row, i) => el('div', { class: 'cmp-card' },
+        el('div', { class: 'cmp-grid' },
+          el('input', { type: 'text', value: row.label, placeholder: 'اسم البند، مثل: التبرعات', 'aria-label': 'اسم البند ' + (i + 1), oninput: (e) => upd(s.id, 'cml' + i, (x) => { rowAt(x, i).label = e.target.value; }) }),
+          el('input', { type: 'text', inputmode: 'decimal', value: row.prev, placeholder: '0', 'aria-label': 'قيمة ' + (L.prev || 'السابقة'), oninput: (e) => { upd(s.id, 'cmp' + i, (x) => { rowAt(x, i).prev = e.target.value; }); refreshLive(); } }),
+          el('input', { type: 'text', inputmode: 'decimal', value: row.curr, placeholder: '0', 'aria-label': 'قيمة ' + (L.curr || 'الحالية'), oninput: (e) => { upd(s.id, 'cmc' + i, (x) => { rowAt(x, i).curr = e.target.value; }); refreshLive(); } }),
+          el('input', { type: 'text', value: row.unit || '', placeholder: 'ريال', 'aria-label': 'الوحدة', oninput: (e) => upd(s.id, 'cmu' + i, (x) => { rowAt(x, i).unit = e.target.value; }) }),
+          el('div', { class: 'gact' },
+            iconBtn('up', 'تحريك لأعلى', () => { if (i > 0) { upd(s.id, null, (x) => { const a = x.content.rows; a.splice(i - 1, 0, a.splice(i, 1)[0]); }, 'structure'); draw(); } }),
+            iconBtn('down', 'تحريك لأسفل', () => { if (i < rows.length - 1) { upd(s.id, null, (x) => { const a = x.content.rows; a.splice(i + 1, 0, a.splice(i, 1)[0]); }, 'structure'); draw(); } }),
+            iconBtn('x', 'حذف البند', () => { upd(s.id, null, (x) => { if (x.content.rows.length > 1) x.content.rows.splice(i, 1); else x.content.rows[0] = { label: '', prev: '', curr: '', unit: '', better: 'up' }; }, 'structure'); draw(); }, 'danger'))),
+        el('div', { class: 'cmp-sub' },
+          el('select', { 'aria-label': 'الاتجاه الأفضل', onchange: (e) => { upd(s.id, null, (x) => { rowAt(x, i).better = e.target.value; }); refreshLive(); } }, el('option', { value: 'up', selected: row.better !== 'down' }, 'الارتفاع أفضل'), el('option', { value: 'down', selected: row.better === 'down' }, 'الانخفاض أفضل')),
+          (live[i] = el('span', { class: 'cmp-res', 'aria-live': 'polite' }))))),
+      btn('إضافة بند', { icon: 'plus', cls: 'sm ghost', onclick: () => { if (rows.length >= 12) { toast('الحد الأقصى 12 بنداً', { tone: 'err' }); return; } upd(s.id, null, (x) => x.content.rows.push({ label: '', prev: '', curr: '', unit: '', better: 'up' }), 'structure'); draw(); } }),
+      el('div', { class: 'cmp-opts' },
+        el('label', { class: 'chk' }, el('input', { type: 'checkbox', checked: s.content.chart !== false, onchange: (e) => upd(s.id, null, (x) => { x.content.chart = e.target.checked; }) }), 'رسم بياني للمقارنة'),
+        el('label', { class: 'chk' }, el('input', { type: 'checkbox', checked: s.content.summary !== false, onchange: (e) => upd(s.id, null, (x) => { x.content.summary = e.target.checked; }) }), 'جُمل تلخيصية تلقائية'),
+        el('label', { class: 'chk' }, 'عدد المنازل العشرية للنسبة: ', segmented([[0, '0'], [1, '1'], [2, '2']], s.content.decimals == null ? 1 : s.content.decimals, (v) => { upd(s.id, null, (x) => { x.content.decimals = v; }); refreshLive(); }, 'المنازل العشرية'))));
+    refreshLive();
+  }
+  draw();
+  return wrap;
+}
+
 function calloutEditor(s) {
   return el('div', {}, field('نوع الملاحظة', segmented([['info', 'معلومة'], ['success', 'إيجابية'], ['warn', 'تنبيه']], s.content.tone, (v) => upd(s.id, null, (x) => { x.content.tone = v; }), 'نوع الملاحظة')),
     field('النص', el('textarea', { rows: 4, oninput: (e) => upd(s.id, 'co', (x) => { x.content.text = e.target.value; }), 'aria-label': 'نص الملاحظة' }, s.content.text || '')));
@@ -219,7 +363,7 @@ function calloutEditor(s) {
 export function sectionEditor(s) {
   const body = {
     text: () => richText(s), list: () => listEditor(s), table: () => tableEditor(s), kpi: () => kpiEditor(s), chart: () => chartEditor(s),
-    progress: () => progressEditor(s), timeline: () => timelineEditor(s), image: () => imageEditor(s), callout: () => calloutEditor(s),
+    progress: () => progressEditor(s), calc: () => calcEditor(s), compare: () => compareEditor(s), timeline: () => timelineEditor(s), image: () => imageEditor(s), callout: () => calloutEditor(s),
     pagebreak: () => el('div', { class: 'empty-note' }, 'سيبدأ المحتوى بعد هذا الفاصل في صفحة جديدة.'),
   }[s.type]();
   const info = T.BLOCKS[s.type];
