@@ -84,17 +84,63 @@
       return `<svg viewBox="0 0 ${W} ${top + data.length * (rowH + gap)}" role="img">${rows}</svg>`;
     }
 
-    // donut
-    const total = data.reduce((s, d) => s + d.value, 0) || 1, R = 70, C = 2 * Math.PI * R;
+    if (kind === 'gauge') {
+      const v = data[0].value, mx = num(c.max) > 0 ? num(c.max) : 100, ratio = Math.max(0, Math.min(1, v / mx));
+      return `<svg viewBox="0 0 200 138" role="img"><path class="gg-bg" d="M20 100 A80 80 0 0 1 180 100" pathLength="100"/><path class="gg-fg" d="M20 100 A80 80 0 0 1 180 100" pathLength="100" stroke-dasharray="${(ratio * 100).toFixed(2)} 100"/><text class="big" x="100" y="94" text-anchor="middle">${E(fmt(v))}${unit}</text><text class="l" x="20" y="116" text-anchor="middle">0</text><text class="l" x="180" y="116" text-anchor="middle">${E(fmt(mx))}</text><text class="l" x="100" y="132" text-anchor="middle">${E(data[0].label)} · ${E(Math.round(ratio * 100))}%</text></svg>`;
+    }
+
+    if (kind === 'radar') {
+      const n = Math.max(data.length, 3), cx = 150, cy = 130, R = 85, pts = [];
+      const ang = (i) => -Math.PI / 2 - (i * 2 * Math.PI) / n; // عكس عقارب الساعة ليناسب الاتجاه العربي
+      const pt = (i, f) => [cx + Math.cos(ang(i)) * R * f, cy + Math.sin(ang(i)) * R * f];
+      const rings = [0.25, 0.5, 0.75, 1].map((f) => `<polygon class="rd-grid" points="${Array.from({ length: n }, (_, i) => pt(i, f).map((x) => x.toFixed(1)).join(',')).join(' ')}"/>`).join('');
+      const spokes = Array.from({ length: n }, (_, i) => { const p = pt(i, 1); return `<line class="rd-grid" x1="${cx}" y1="${cy}" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}"/>`; }).join('');
+      data.forEach((d, i) => pts.push(pt(i, Math.max(0, d.value) / max)));
+      while (pts.length < n) pts.push([cx, cy]);
+      const labels = data.map((d, i) => { const p = pt(i, 1.2), a = Math.cos(ang(i)); return `<text class="l" x="${p[0].toFixed(1)}" y="${(p[1] + 4).toFixed(1)}" text-anchor="${a > 0.3 ? 'start' : a < -0.3 ? 'end' : 'middle'}">${E(short(d.label, 12))}</text>`; }).join('');
+      const dots = pts.slice(0, data.length).map((p, i) => `<circle class="rd-dot" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.5"/><text class="v" x="${p[0].toFixed(1)}" y="${(p[1] - 7).toFixed(1)}" text-anchor="middle">${E(fmt(data[i].value))}</text>`).join('');
+      return `<svg viewBox="0 0 300 262" role="img">${rings}${spokes}<polygon class="rd-area" points="${pts.map((p) => p.map((x) => x.toFixed(1)).join(',')).join(' ')}"/>${dots}${labels}</svg>`;
+    }
+
+    if (kind === 'funnel') {
+      const rowH = Math.min(38, 220 / data.length), gap = 4, maxW = 300, cx = 150, first = data[0].value || 1;
+      const rows = data.map((d, i) => {
+        const w1 = Math.max(24, (d.value / max) * maxW), nxt = data[i + 1] ? Math.max(24, (data[i + 1].value / max) * maxW) : w1 * 0.8, y = i * (rowH + gap);
+        const poly = `${cx - w1 / 2},${y} ${cx + w1 / 2},${y} ${cx + nxt / 2},${y + rowH} ${cx - nxt / 2},${y + rowH}`;
+        return `<polygon class="fn" style="opacity:${(1 - i * 0.55 / data.length).toFixed(2)}" points="${poly}"/><text class="fnv" x="${cx}" y="${y + rowH / 2 + 4}" text-anchor="middle">${E(fmt(d.value))}${unit}</text><text class="l" x="${W - 4}" y="${y + rowH / 2 - 2}" text-anchor="end">${E(short(d.label, 14))}</text><text class="l mut" x="${W - 4}" y="${y + rowH / 2 + 12}" text-anchor="end">${E(Math.round((d.value / first) * 100))}%</text>`;
+      }).join('');
+      return `<svg viewBox="0 0 ${W} ${data.length * (rowH + gap)}" role="img">${rows}</svg>`;
+    }
+
+    if (kind === 'waterfall') {
+      // أول عنصر = الرصيد الافتتاحي، والباقي تغيّرات (موجب/سالب)، ويُضاف تلقائياً عمود «الإجمالي»
+      const steps = []; let cum = 0;
+      data.forEach((d, i) => { if (i === 0) { cum = d.value; steps.push({ label: d.label, from: 0, to: cum, kind: 'tot', val: d.value }); } else { const from = cum; cum += d.value; steps.push({ label: d.label, from, to: cum, kind: d.value >= 0 ? 'up' : 'dn', val: d.value }); } });
+      steps.push({ label: 'الإجمالي', from: 0, to: cum, kind: 'tot', val: cum });
+      const lo = Math.min(0, ...steps.flatMap((s) => [s.from, s.to])), hi = Math.max(1, ...steps.flatMap((s) => [s.from, s.to]));
+      const p = { l: 14, r: 14, t: 28, b: 40 }, iw = W - p.l - p.r, ih = H - p.t - p.b, step = iw / steps.length, bw = Math.min(46, step * 0.64);
+      const y = (v) => p.t + ih - ((v - lo) / (hi - lo || 1)) * ih;
+      const bars = steps.map((s, i) => {
+        const x = p.l + i * step + (step - bw) / 2, top = y(Math.max(s.from, s.to)), h = Math.max(1.5, Math.abs(y(s.from) - y(s.to)));
+        const conn = i < steps.length - 1 ? `<line class="wf-c" x1="${(x + bw).toFixed(1)}" x2="${(x + step).toFixed(1)}" y1="${y(s.to).toFixed(1)}" y2="${y(s.to).toFixed(1)}"/>` : '';
+        const txt = s.kind === 'tot' ? fmt(s.val) : (s.val >= 0 ? '+' : '−') + fmt(Math.abs(s.val));
+        return `${conn}<rect class="bar wf-${s.kind}" x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3"/><text class="v" x="${(x + bw / 2).toFixed(1)}" y="${(top - 5).toFixed(1)}" text-anchor="middle">${E(txt)}${unit}</text><text class="l" x="${(x + bw / 2).toFixed(1)}" y="${H - 16}" text-anchor="middle">${E(short(s.label, 11))}</text>`;
+      }).join('');
+      return `<svg viewBox="0 0 ${W} ${H}" role="img"><line class="ax" x1="${p.l}" x2="${W - p.r}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}"/>${bars}</svg>`;
+    }
+
+    // donut / pie
+    const isPie = kind === 'pie';
+    const total = data.reduce((s, d) => s + d.value, 0) || 1, R = isPie ? 35 : 70, C = 2 * Math.PI * R;
     let off = 0;
     const arcs = data.map((d, i) => {
       const len = (d.value / total) * C;
-      const el = `<circle class="arc s${i % 6}" cx="100" cy="100" r="${R}" fill="none" stroke-width="30" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 100 100)"/>`;
+      const el = `<circle class="arc s${i % 6}" cx="100" cy="100" r="${R}" fill="none" stroke-width="${isPie ? 70 : 30}" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 100 100)"/>`;
       off += len; return el;
     }).join('');
     const centre = data.length === 1 ? Math.round(data[0].value) + '%' : fmt(total);
     const legend = data.map((d, i) => `<li><i class="sw s${i % 6}"></i><span>${E(d.label)}</span><b><bdi>${E(fmt(d.value))}${unit}</bdi></b><em>${Math.round((d.value / total) * 100)}%</em></li>`).join('');
-    return `<div class="donut"><svg viewBox="0 0 200 200" role="img">${arcs}<text class="big" x="100" y="108" text-anchor="middle">${E(centre)}</text></svg><ul class="legend">${legend}</ul></div>`;
+    return `<div class="donut"><svg viewBox="0 0 200 200" role="img">${arcs}${isPie ? '' : `<text class="big" x="100" y="108" text-anchor="middle">${E(centre)}</text>`}</svg><ul class="legend">${legend}</ul></div>`;
   }
 
   // رسم أعمدة مزدوجة (الفترة السابقة مقابل الحالية)
@@ -124,6 +170,7 @@
       case 'progress': return !(c && (c.items || []).some((i) => i && (i.label || i.value)));
       case 'timeline': return !(c && (c.items || []).some((i) => i && (i.title || i.date)));
       case 'image': return !(c && c.src);
+      case 'gantt': return !(c && (c.items || []).some((i) => i && i.name && isoOk(i.start) && isoOk(i.end)));
       case 'calc': return !C.calcHasInput(c);
       case 'compare': return !C.compareHasData(c);
       case 'callout': return !(c && String(c.text || '').trim());
@@ -132,6 +179,7 @@
     }
   }
 
+  const isoOk = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !isNaN(Date.parse(s));
   const SAFE_IMG = /^(?:data:image\/(?:png|jpe?g|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+|\/brand\/icons\/(?:hex|plain)\/[a-z0-9-]{1,40}\.svg)$/;
   const SLUG = /^[a-z0-9-]{1,40}$/;
   const iconUrl = (slug, v) => (SLUG.test(slug || '') ? `/brand/icons/${v || 'hex'}/${slug}.svg` : '');
@@ -153,8 +201,12 @@
         }
         case 'table': {
           const heads = (c.headers || []).map((h) => `<th>${E(h)}</th>`).join('');
-          const rows = (c.rows || []).filter((r) => r.some((x) => String(x).trim())).map((r) => `<tr>${r.map((x) => `<td>${E(x)}</td>`).join('')}</tr>`).join('');
-          return `<div class="tw"><table class="tbl${c.zebra === false ? '' : ' zebra'}"><thead><tr>${heads}</tr></thead><tbody data-split>${rows}</tbody></table></div>`;
+          const body = (c.rows || []).filter((r) => r.some((x) => String(x).trim()));
+          let lo = Infinity, hi = -Infinity;
+          if (c.heat) body.forEach((r) => r.forEach((x, j) => { const n = j > 0 ? C.toNum(x) : null; if (n !== null) { lo = Math.min(lo, n); hi = Math.max(hi, n); } }));
+          const cell = (x, j) => { const n = c.heat && j > 0 ? C.toNum(x) : null; if (n === null || hi <= lo) return `<td>${E(x)}</td>`; const p = Math.round(8 + 82 * ((n - lo) / (hi - lo))); return `<td class="hm" style="background:color-mix(in srgb, var(--a) ${p}%, #fff);color:${p > 52 ? '#fff' : '#17212c'}">${E(x)}</td>`; };
+          const rows = body.map((r) => `<tr>${r.map(cell).join('')}</tr>`).join('');
+          return `<div class="tw"><table class="tbl${c.zebra === false || c.heat ? '' : ' zebra'}${c.heat ? ' heat' : ''}"><thead><tr>${heads}</tr></thead><tbody data-split>${rows}</tbody></table></div>`;
         }
         case 'kpi': {
           const items = (c.items || []).filter((k) => k && (k.label || k.value));
@@ -176,6 +228,22 @@
             `<li class="st-${['done', 'active', 'todo'].includes(i.status) ? i.status : 'todo'}"><span class="td">${E(i.date)}</span><div><b>${E(i.title)}</b>${i.desc ? `<p>${E(i.desc)}</p>` : ''}</div></li>`).join('')}</ol>`;
         case 'image':
           return SAFE_IMG.test(c.src || '') ? `<figure class="img"><img src="${c.src}" alt="${E(c.caption || s.title || '')}" style="max-height:${Math.max(60, Math.min(600, parseInt(c.height, 10) || 220))}px;object-fit:${c.fit === 'cover' ? 'cover' : 'contain'}">${c.caption ? `<figcaption>${E(c.caption)}</figcaption>` : ''}</figure>` : '';
+        case 'gantt': {
+          const items = (c.items || []).filter((i) => i && i.name && isoOk(i.start) && isoOk(i.end) && Date.parse(i.end) >= Date.parse(i.start));
+          if (!items.length) return '';
+          const DAY = 86400000, t0 = Math.min(...items.map((i) => Date.parse(i.start))), t1 = Math.max(...items.map((i) => Date.parse(i.end))) + DAY;
+          const a = new Date(t0), start = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), 1), e = new Date(t1), end = Date.UTC(e.getUTCFullYear(), e.getUTCMonth() + 1, 1), total = end - start;
+          const months = []; for (let t = new Date(start); t.getTime() < end && months.length < 36; t = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 1))) months.push(new Date(t));
+          const nm = (d) => d.toLocaleDateString('ar-SA-u-ca-gregory', { month: 'short', timeZone: 'UTC' }) + (d.getUTCMonth() === 0 || d === months[0] ? ' ' + d.getUTCFullYear() : '');
+          const pctx = (t) => (((t - start) / total) * 100).toFixed(3);
+          const head = months.map((m, i) => `<span style="right:${pctx(m.getTime())}%;width:${(((i + 1 < months.length ? months[i + 1].getTime() : end) - m.getTime()) / total * 100).toFixed(3)}%">${E(nm(m))}</span>`).join('');
+          const rows = items.map((i) => {
+            const s = Date.parse(i.start), f = Date.parse(i.end) + DAY, pr = Math.max(0, Math.min(100, C.toNum(i.progress) || 0));
+            return `<div class="g-name"><b>${E(i.name)}</b>${i.owner ? `<small>${E(i.owner)}</small>` : ''}</div><div class="g-track"><i class="g-bar" style="right:${pctx(s)}%;width:${(((f - s) / total) * 100).toFixed(3)}%"><b style="width:${pr}%"></b><em>${pr ? E(pr + '%') : ''}</em></i></div>`;
+          }).join('');
+          const today = Date.now(), tl = today >= start && today < end ? `<i class="g-today" style="right:${pctx(today)}%"></i>` : '';
+          return `<div class="gantt"><div class="g-corner"></div><div class="g-head">${head}</div>${rows}${tl ? `<div class="g-ov">${tl}</div>` : ''}</div>`;
+        }
         case 'calc': {
           const ev = C.evalCalc(c), rows = (c.rows || []).filter((x) => x && (x.label || (x.kind !== 'calc' && C.toNum(x.value) !== null)));
           const val = (x) => (ev.errors[x.key] ? '<span class="cerr">خطأ</span>' : `<bdi>${E(C.fmtRow(ev.values[x.key], x))}</bdi>`);

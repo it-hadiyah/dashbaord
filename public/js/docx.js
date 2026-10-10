@@ -93,11 +93,26 @@ function table(rows, widths, o = {}) {
 }
 const tr = (cells, o = {}) => `<w:tr><w:trPr><w:cantSplit/>${o.header ? '<w:tblHeader/>' : ''}</w:trPr>${cells.join('')}</w:tr>`;
 
+const blendHex = (hex, pct) => { const h = String(hex).replace('#', ''); const ch = (i) => parseInt(h.substr(i, 2), 16); return [0, 2, 4].map((i) => Math.round(ch(i) * (pct / 100) + 255 * (1 - pct / 100)).toString(16).padStart(2, '0')).join('').toUpperCase(); };
+
+function ganttXml(ctx, c) {
+  const items = (c.items || []).filter((i) => i && i.name);
+  if (!items.length) return '';
+  const W = [Math.round(CONTENT_W * 0.34), Math.round(CONTENT_W * 0.17), Math.round(CONTENT_W * 0.17), Math.round(CONTENT_W * 0.12), 0]; W[4] = CONTENT_W - W[0] - W[1] - W[2] - W[3];
+  const hc = (t, w) => cell(para(run(ctx, t, { b: true, color: 'FFFFFF', size: 10.5 }), { after: 0, line: 300 }), w, { fill: ctx.a });
+  const tc = (t, w, fill, b) => cell(para(run(ctx, t, { size: 10.5, b }), { after: 0, line: 300 }), w, { fill });
+  return table([tr([hc('المهمة', W[0]), hc('البداية', W[1]), hc('النهاية', W[2]), hc('الإنجاز', W[3]), hc('المسؤول', W[4])], { header: true }),
+    ...items.map((i, k) => { const f = k % 2 ? ctx.s : null; return tr([tc(i.name, W[0], f, true), tc(i.start || '—', W[1], f), tc(i.end || '—', W[2], f), tc(i.progress ? i.progress + '%' : '—', W[3], f), tc(i.owner || '', W[4], f)]); })], W);
+}
+
 function tableXml(ctx, c) {
   const n = Math.max(c.headers.length, ...c.rows.map((r) => r.length), 1);
   const w = Math.floor(CONTENT_W / n), widths = Array(n).fill(w);
   const head = tr(Array.from({ length: n }, (_, j) => cell(para(run(ctx, c.headers[j] || '', { b: true, color: 'FFFFFF', size: 10.5 }), { after: 0, line: 300 }), w, { fill: ctx.a })), { header: true });
-  const rows = c.rows.filter((r) => r.some((x) => String(x).trim())).map((r, i) => tr(Array.from({ length: n }, (_, j) => cell(para(run(ctx, r[j] || '', { size: 10.5 }), { after: 0, line: 300 }), w, { fill: c.zebra !== false && i % 2 ? ctx.s : null }))));
+  let lo = Infinity, hi = -Infinity; const body = c.rows.filter((r) => r.some((x) => String(x).trim()));
+  if (c.heat) body.forEach((r) => r.forEach((x, j) => { const v = j > 0 ? window.RBC.toNum(x) : null; if (v !== null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }));
+  const rows = body.map((r, i) => tr(Array.from({ length: n }, (_, j) => { const v = c.heat && j > 0 ? window.RBC.toNum(r[j]) : null; const heat = v !== null && hi > lo ? Math.round(8 + 82 * ((v - lo) / (hi - lo))) : null;
+    return cell(para(run(ctx, r[j] || '', { size: 10.5, color: heat && heat > 52 ? 'FFFFFF' : null }), { after: 0, line: 300 }), w, { fill: heat ? blendHex(ctx.a, heat) : (!c.heat && c.zebra !== false && i % 2 ? ctx.s : null) }); })));
   return table([head, ...rows], widths);
 }
 
@@ -147,7 +162,7 @@ async function toPng(img, w, h, bg) { const c = document.createElement('canvas')
 
 function chartCss(ctx) {
   const A = '#' + ctx.a, X = '#' + ctx.x, D = '#' + ctx.d;
-  return `text{font-family:Tahoma,Arial,sans-serif}.gl{stroke:#e3e8ee}.ax{stroke:#b8c2cd;stroke-width:1.2}.v{font-size:12px;font-weight:600;fill:#17212c}.l{font-size:12px;fill:#4a5968}.big{font-size:26px;font-weight:700;fill:#17212c}.bar.s0{fill:${A}}.bar.s1{fill:#9db8b2}.area.s0{fill:${X};opacity:.28}.ln.s0{fill:none;stroke:${A};stroke-width:3;stroke-linejoin:round}.dot.s0{fill:#fff;stroke:${A};stroke-width:3}.arc.s0{stroke:${A}}.arc.s1{stroke:${X}}.arc.s2{stroke:${D}}.arc.s3{stroke:#e0b04a}.arc.s4{stroke:#d96c4f}.arc.s5{stroke:#7d93a8}`;
+  return `text{font-family:Tahoma,Arial,sans-serif}.gl{stroke:#e3e8ee}.ax{stroke:#b8c2cd;stroke-width:1.2}.v{font-size:12px;font-weight:600;fill:#17212c}.l{font-size:12px;fill:#4a5968}.big{font-size:26px;font-weight:700;fill:#17212c}.bar.s0{fill:${A}}.bar.s1{fill:#9db8b2}.area.s0{fill:${X};opacity:.28}.ln.s0{fill:none;stroke:${A};stroke-width:3;stroke-linejoin:round}.dot.s0{fill:#fff;stroke:${A};stroke-width:3}.gg-bg{fill:none;stroke:#e3e8ee;stroke-width:18;stroke-linecap:round}.gg-fg{fill:none;stroke:${A};stroke-width:18;stroke-linecap:round}.rd-grid{fill:none;stroke:#dbe2ea}.rd-area{fill:${X};fill-opacity:.35;stroke:${A};stroke-width:2.5}.rd-dot{fill:#fff;stroke:${A};stroke-width:2.5}.fn{fill:${A}}.fnv{font-size:13px;font-weight:700;fill:#fff}.mut{fill:#8393a4}.wf-tot{fill:${A}}.wf-up{fill:${X}}.wf-dn{fill:#d96c4f}.wf-c{stroke:#9aa8b6;stroke-dasharray:3 3}.arc.s0{stroke:${A}}.arc.s1{stroke:${X}}.arc.s2{stroke:${D}}.arc.s3{stroke:#e0b04a}.arc.s4{stroke:#d96c4f}.arc.s5{stroke:#7d93a8}`;
 }
 async function chartXml(ctx, c) {
   const html = RBR.chartSvg(c, (v) => RBR.escRaw(ctx.map(String(v))));
@@ -156,9 +171,9 @@ async function chartXml(ctx, c) {
   const svg = m[0].replace('<svg ', `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" style="direction:ltr" `).replace('>', `><style>${chartCss(ctx)}</style>`);
   const img = await loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg));
   const bytes = await toPng(img, w * 2, h * 2, '#ffffff');
-  const widthEmu = Math.round((c.kind === 'donut' ? 7 : 15) * 360000), heightEmu = Math.round(widthEmu * h / w);
+  const widthEmu = Math.round((c.kind === 'donut' || c.kind === 'pie' ? 7 : c.kind === 'gauge' ? 9 : c.kind === 'radar' ? 11 : 15) * 360000), heightEmu = Math.round(widthEmu * h / w);
   let out = para(drawing(ctx, addMedia(ctx, bytes, 'png'), widthEmu, heightEmu, 'رسم بياني'), { after: 120, line: 240 });
-  if (c.kind === 'donut') {
+  if (c.kind === 'donut' || c.kind === 'pie') {
     const total = c.data.reduce((s, d) => s + RBR.num(d.value), 0) || 1;
     out += c.data.filter((d) => d.label || d.value).map((d) => para(run(ctx, `${d.label}: ${d.value}${c.unit || ''}  —  ${Math.round(RBR.num(d.value) / total * 100)}%`, { size: 10.5 }), { after: 20, line: 300 })).join('');
   }
@@ -257,6 +272,7 @@ export async function exportDocx(report, config, fileName, workflow) {
       case 'kpi': body.push(kpiXml(ctx, c)); break;
       case 'chart': body.push(await chartXml(ctx, c)); break;
       case 'progress': body.push(progressXml(ctx, c)); break;
+      case 'gantt': body.push(ganttXml(ctx, c)); break;
       case 'calc': body.push(calcXml(ctx, c)); break;
       case 'compare': body.push(await compareXml(ctx, c)); break;
       case 'timeline': body.push(timelineXml(ctx, c)); break;

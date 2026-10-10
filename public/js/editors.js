@@ -66,7 +66,7 @@ function rows(s, { get, cols, make, addLabel, min = 1 }) {
         } else if (c.type === 'select') {
           inp = el('select', { 'aria-label': c.label, onchange: (e) => upd(s.id, null, (x) => { get(x)[i][c.key] = e.target.value; }) }, c.options.map(([v, t]) => el('option', { value: v, selected: it[c.key] === v }, t)));
         } else {
-          inp = el('input', { type: 'text', value: it[c.key] || '', placeholder: c.ph || '', inputmode: c.inputmode, 'aria-label': c.label + ' ' + (i + 1), autocomplete: 'off',
+          inp = el('input', { type: c.type === 'date' ? 'date' : 'text', value: it[c.key] || '', placeholder: c.ph || '', inputmode: c.inputmode, 'aria-label': c.label + ' ' + (i + 1), autocomplete: 'off',
             oninput: (e) => upd(s.id, 'r' + i + c.key, (x) => { get(x)[i][c.key] = e.target.value; }),
             onkeydown: (e) => { if (e.key === 'Enter' && ci === cols.length - 1) { e.preventDefault(); upd(s.id, null, (x) => get(x).splice(i + 1, 0, make()), 'structure'); draw(i + 1, 0); } },
             onpaste: (e) => {
@@ -140,7 +140,8 @@ function tableEditor(s) {
     wrap.replaceChildren(el('div', { class: 'tscroll' }, t),
       el('div', { class: 'btns' }, btn('إضافة صف', { icon: 'plus', cls: 'sm ghost', onclick: () => { upd(s.id, null, (x) => x.content.rows.push(Array(x.content.headers.length).fill('')), 'structure'); draw(); } }),
         btn('إضافة عمود', { icon: 'plus', cls: 'sm ghost', onclick: () => { upd(s.id, null, (x) => { x.content.headers.push(''); x.content.rows.forEach((r) => r.push('')); }, 'structure'); draw(); } }),
-        el('label', { class: 'chk' }, el('input', { type: 'checkbox', checked: c.zebra !== false, onchange: (e) => upd(s.id, null, (x) => { x.content.zebra = e.target.checked; }) }), 'تظليل الصفوف بالتناوب')),
+        el('label', { class: 'chk' }, el('input', { type: 'checkbox', checked: c.zebra !== false, onchange: (e) => upd(s.id, null, (x) => { x.content.zebra = e.target.checked; }) }), 'تظليل الصفوف بالتناوب'),
+        el('label', { class: 'chk', title: 'يلوّن الخلايا الرقمية حسب قيمتها (الأعلى أغمق)' }, el('input', { type: 'checkbox', checked: !!c.heat, onchange: (e) => upd(s.id, null, (x) => { x.content.heat = e.target.checked; }) }), 'خريطة حرارية (تلوين الأرقام)')),
       el('p', { class: 'tip' }, 'انسخ جدولاً من Excel والصقه في أي خلية وسيتوزع تلقائياً.'));
   };
   draw();
@@ -154,13 +155,22 @@ function kpiEditor(s) {
     el('p', { class: 'tip' }, 'التغيّر اختياري: ابدأه بعلامة - لإظهار سهم هابط.'));
 }
 
-const KINDS = [['bar', 'أعمدة'], ['line', 'خط'], ['area', 'مساحة'], ['donut', 'دائري'], ['hbar', 'أفقي']];
+const KINDS = [['bar', 'أعمدة'], ['line', 'خط'], ['area', 'مساحة'], ['donut', 'حلقة'], ['pie', 'دائرة'], ['hbar', 'أفقي'], ['waterfall', 'شلال'], ['gauge', 'مقياس'], ['radar', 'رادار'], ['funnel', 'قمع']];
+const KIND_TIPS = { waterfall: 'الشلال: أول صف = الرصيد الافتتاحي، والصفوف التالية قيم التغيّر (موجبة أو سالبة بعلامة -)، ويُضاف عمود «الإجمالي» تلقائياً.', gauge: 'المقياس: يستخدم أول صف فقط (القيمة)، وحدد القيمة القصوى بالأسفل.', radar: 'الرادار: أدخل 3 محاور أو أكثر بنفس المقياس.', funnel: 'القمع: رتّب المراحل من الأكبر إلى الأصغر (مثل: المتقدمون ← المقبولون ← المستفيدون).', pie: 'الدائرة: تُحسب النسبة تلقائياً من مجموع القيم.' };
 function chartEditor(s) {
   return el('div', {}, field('نوع الرسم', segmented(KINDS, s.content.kind, (v) => upd(s.id, null, (x) => { x.content.kind = v; }), 'نوع الرسم')),
     rows(s, { get: (x) => x.content.data, make: () => ({ label: '', value: '' }), addLabel: 'إضافة نقطة', min: 1,
       cols: [{ key: 'label', label: 'التسمية', ph: 'يناير', w: '1.5fr' }, { key: 'value', label: 'القيمة (رقم)', ph: '120', w: '1fr', inputmode: 'decimal' }] }),
+    s.content.kind === 'gauge' ? field('القيمة القصوى للمقياس', textInput(s.content.max || '100', (v) => upd(s.id, 'mx', (x) => { x.content.max = v; }), { ph: '100', inputmode: 'decimal' })) : null,
     field('الوحدة (اختياري)', textInput(s.content.unit, (v) => upd(s.id, 'u', (x) => { x.content.unit = v; }), { ph: 'مثال: %' })),
+    KIND_TIPS[s.content.kind] ? el('p', { class: 'tip' }, KIND_TIPS[s.content.kind]) : null,
     el('p', { class: 'tip' }, 'الصق عمودين من Excel (التسمية ثم القيمة) في أول خلية وسيتم تعبئة الجدول.'));
+}
+
+function ganttEditor(s) {
+  return el('div', {}, rows(s, { get: (x) => x.content.items, make: () => ({ name: '', start: '', end: '', progress: '', owner: '' }), addLabel: 'إضافة مهمة', min: 1,
+    cols: [{ key: 'name', label: 'المهمة', ph: 'التصميم', w: '1.6fr' }, { key: 'start', label: 'البداية', type: 'date', w: '1.1fr' }, { key: 'end', label: 'النهاية', type: 'date', w: '1.1fr' }, { key: 'progress', label: 'الإنجاز %', ph: '60', w: '.7fr', inputmode: 'numeric' }, { key: 'owner', label: 'المسؤول', ph: 'اختياري', w: '1fr' }] }),
+  el('p', { class: 'tip' }, 'يُرسم شريط لكل مهمة على محور زمني بالأشهر، مع نسبة الإنجاز داخل الشريط وخط «اليوم».'));
 }
 
 function progressEditor(s) {
@@ -363,7 +373,7 @@ function calloutEditor(s) {
 export function sectionEditor(s) {
   const body = {
     text: () => richText(s), list: () => listEditor(s), table: () => tableEditor(s), kpi: () => kpiEditor(s), chart: () => chartEditor(s),
-    progress: () => progressEditor(s), calc: () => calcEditor(s), compare: () => compareEditor(s), timeline: () => timelineEditor(s), image: () => imageEditor(s), callout: () => calloutEditor(s),
+    progress: () => progressEditor(s), gantt: () => ganttEditor(s), calc: () => calcEditor(s), compare: () => compareEditor(s), timeline: () => timelineEditor(s), image: () => imageEditor(s), callout: () => calloutEditor(s),
     pagebreak: () => el('div', { class: 'empty-note' }, 'سيبدأ المحتوى بعد هذا الفاصل في صفحة جديدة.'),
   }[s.type]();
   const info = T.BLOCKS[s.type];

@@ -24,6 +24,7 @@
     kpi: { name: 'مؤشرات وبطاقات', icon: 'gauge', desc: 'بطاقات KPI وإحصاءات بارزة' },
     chart: { name: 'رسم بياني', icon: 'chart', desc: 'أعمدة، خط، مساحة، دائري' },
     progress: { name: 'مؤشرات تقدم', icon: 'progress', desc: 'أشرطة نسب الإنجاز' },
+    gantt: { name: 'مخطط جانت (جدول المشروع)', icon: 'gantt', desc: 'مهام بتواريخ بداية ونهاية ونسب إنجاز' },
     timeline: { name: 'خط زمني', icon: 'timeline', desc: 'مراحل ومعالم زمنية' },
     image: { name: 'صورة / شعار', icon: 'image', desc: 'رفع صورة مع تعليق' },
     calc: { name: 'حسابات تلقائية', icon: 'calculator', desc: 'أدخل أرقاماً ويُحسب المتبقي والنسب' },
@@ -60,6 +61,7 @@
       case 'progress': return { items: (preset && preset.labels ? preset.labels : ['', '']).map((label) => ({ label, value: '' })) };
       case 'timeline': return { items: [{ date: '', title: '', desc: '', status: 'todo' }, { date: '', title: '', desc: '', status: 'todo' }] };
       case 'image': return { src: '', caption: '', fit: 'contain', height: 220 };
+      case 'gantt': return { items: [{ name: '', start: '', end: '', progress: '', owner: '' }, { name: '', start: '', end: '', progress: '', owner: '' }, { name: '', start: '', end: '', progress: '', owner: '' }] };
       case 'calc': return { style: 'table', rows: CALC_RECIPES[(preset && preset.recipe) || 'budget'].rows() };
       case 'compare': return defaultCompare();
       case 'callout': return { tone: 'info', text: '' };

@@ -128,3 +128,18 @@ body.thumb { overflow: hidden; background: #fff; } body.thumb .pages { padding: 
 .kpis.cards .kpi.res .chg { color: #fff; }
 .cmpchart { margin-top: 4mm; } .bar.s1 { fill: #9db8b2; }
 .cmp-sum { margin: 3mm 0 0; padding-inline-start: 20px; font-size: 13px; color: #3a4755; line-height: 1.9; }
+
+/* رسوم إضافية: مقياس، رادار، قمع، شلال */
+.gg-bg { fill: none; stroke: #e3e8ee; stroke-width: 18; stroke-linecap: round; } .gg-fg { fill: none; stroke: var(--a); stroke-width: 18; stroke-linecap: round; }
+.rd-grid { fill: none; stroke: #dbe2ea; stroke-width: 1; } .rd-area { fill: var(--x); fill-opacity: .35; stroke: var(--a); stroke-width: 2.5; stroke-linejoin: round; } .rd-dot { fill: #fff; stroke: var(--a); stroke-width: 2.5; }
+.fn { fill: var(--a); } .fnv { font-size: 13px; font-weight: 700; fill: #fff; font-family: inherit; } svg .mut { fill: #8393a4; }
+.wf-tot { fill: var(--a); } .wf-up { fill: var(--x); } .wf-dn { fill: #d96c4f; } .wf-c { stroke: #9aa8b6; stroke-width: 1; stroke-dasharray: 3 3; }
+
+.chart.ck-gauge svg { max-width: 72%; margin: 0 auto; } .tbl.heat td.hm { text-align: center; font-weight: 600; } .tbl.heat td { border: 1px solid #fff; }
+/* مخطط جانت */
+.gantt { display: grid; grid-template-columns: 34mm 1fr; position: relative; font-size: 12px; border: 1px solid #dbe2ea; border-radius: 8px; overflow: hidden; }
+.g-corner { background: var(--s); border-bottom: 1px solid #dbe2ea; } .g-head { position: relative; height: 26px; background: var(--s); border-bottom: 1px solid #dbe2ea; } .g-head span { position: absolute; top: 0; bottom: 0; display: grid; place-items: center; color: var(--d); font-weight: 600; font-size: 11px; border-inline-start: 1px solid #fff; overflow: hidden; white-space: nowrap; }
+.g-name { padding: 5px 10px; border-bottom: 1px solid #eef1f4; display: flex; flex-direction: column; justify-content: center; min-height: 30px; } .g-name b { font-weight: 600; } .g-name small { color: #647385; font-size: 10.5px; }
+.g-track { position: relative; border-bottom: 1px solid #eef1f4; min-height: 30px; background-image: repeating-linear-gradient(to left, transparent 0 calc(100% / 12 - 1px), #f1f4f7 calc(100% / 12 - 1px) calc(100% / 12)); }
+.g-bar { position: absolute; top: 6px; bottom: 6px; background: color-mix(in srgb, var(--a) 28%, #fff); border-radius: 5px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--a) 55%, #fff); min-width: 3px; } .g-bar b { position: absolute; top: 0; bottom: 0; right: 0; background: var(--a); } .g-bar em { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; font-size: 10px; font-weight: 700; color: #fff; mix-blend-mode: normal; text-shadow: 0 0 2px rgba(0, 0, 0, .35); }
+.g-ov { position: absolute; top: 26px; bottom: 0; right: 0; left: 0; margin-inline-start: 34mm; pointer-events: none; } .g-ov { grid-column: 1 / -1; } .g-today { position: absolute; top: 0; bottom: 0; width: 2px; background: #d4533b; }

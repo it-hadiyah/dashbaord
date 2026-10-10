@@ -40,13 +40,13 @@ function cleanContent(type, c) {
     case 'text': return R.sanitize(str(c, 60000));
     case 'list': return { ordered: !!c.ordered, items: arr(c.items, 300).map((i) => str(i, 600)) };
     case 'table': return {
-      zebra: c.zebra !== false,
+      zebra: c.zebra !== false, heat: !!c.heat,
       headers: arr(c.headers, 12).map((h) => str(h, 200)),
       rows: arr(c.rows, 500).map((r) => arr(r, 12).map((x) => str(x, 1000))),
     };
     case 'kpi': return { style: c.style === 'highlights' ? 'highlights' : 'cards', items: arr(c.items, 24).map((k) => ({ icon: slug(k && k.icon), label: str(k && k.label, 200), value: str(k && k.value, 100), trend: str(k && k.trend, 30) })) };
     case 'chart': return {
-      kind: ['bar', 'line', 'area', 'donut', 'hbar'].includes(c.kind) ? c.kind : 'bar', unit: str(c.unit, 20),
+      kind: ['bar', 'line', 'area', 'donut', 'pie', 'hbar', 'waterfall', 'gauge', 'radar', 'funnel'].includes(c.kind) ? c.kind : 'bar', unit: str(c.unit, 20), max: str(c.max, 20),
       data: arr(c.data, 60).map((d) => ({ label: str(d && d.label, 200), value: str(d && d.value, 50) })),
     };
     case 'progress': return { items: arr(c.items, 30).map((i) => ({ label: str(i && i.label, 200), value: str(i && i.value, 20) })) };
@@ -55,6 +55,7 @@ function cleanContent(type, c) {
       const src = str(c.src, MAX_IMAGE * 1.4);
       return { src: R.SAFE_IMG.test(src) && src.length <= MAX_IMAGE * 1.4 ? src : '', caption: str(c.caption, 300), fit: c.fit === 'cover' ? 'cover' : 'contain', height: Math.max(60, Math.min(600, parseInt(c.height, 10) || 220)) };
     }
+    case 'gantt': return { items: arr(c.items, 60).map((i) => ({ name: str(i && i.name, 200), start: /^\d{4}-\d{2}-\d{2}$/.test(String(i && i.start)) ? i.start : '', end: /^\d{4}-\d{2}-\d{2}$/.test(String(i && i.end)) ? i.end : '', progress: str(i && i.progress, 6), owner: str(i && i.owner, 100) })) };
     case 'calc': {
       const used = new Set(); const rows = [];
       for (const r of arr(c.rows, 26)) {
