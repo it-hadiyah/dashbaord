@@ -318,7 +318,7 @@ const sameOrigin = (req) => { const o = req.headers.origin; if (!o) return true;
 const deny = (msg) => Object.assign(new Error(msg), { status: 403 });
 const redirect = (res, to) => { res.writeHead(302, { Location: to, 'Cache-Control': 'no-store' }); res.end(); };
 const page403 = (res, msg) => send(res, 403, `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>غير مصرّح</title><link rel="stylesheet" href="/css/tokens.css"><body style="font-family:var(--font);display:grid;place-items:center;min-height:100vh;margin:0;background:#f3f5f8"><div style="text-align:center;background:#fff;padding:40px 48px;border-radius:16px;box-shadow:0 4px 24px #0002"><h1 style="margin:0 0 8px">غير مصرّح</h1><p style="color:#647385">${msg}</p><p><a href="/">العودة للرئيسية</a></p></div></body></html>`, MIME['.html']);
-const PROTECTED_PAGES = new Set(['/', '/index.html', '/list.html', '/admin.html', '/decks.html', '/deck.html']);
+const PROTECTED_PAGES = new Set(['/', '/index.html', '/list.html', '/admin.html', '/decks.html', '/deck.html', '/dashboard.html']);
 
 async function handleApi(req, res, url, p) {
   const method = req.method;
@@ -374,6 +374,23 @@ async function handleApi(req, res, url, p) {
       }
     } catch (e) { return json(res, 400, { error: e.message }); }
     return json(res, 404, { error: 'غير موجود' });
+  }
+
+  // --- لوحة الرئيسية ---
+  if (p === '/api/dashboard' && method === 'GET') {
+    const mine = await listFor(user, 'mine'), decks = (await listDecks(user, 'mine')) || [];
+    const inbox = user.role === 'employee' ? [] : await listFor(user, 'inbox');
+    const pick = (r) => ({ id: r.id, title: r.title, status: r.status, statusLabel: r.statusLabel, updatedAt: r.updatedAt, templateName: r.templateName });
+    const titleOf = new Map(mine.map((r) => ['report:' + r.id, r.title]).concat(decks.map((d) => ['deck:' + d.id, d.title])));
+    const shares = SH.listByOwner(user.username).map((s) => Object.assign(SH.pub(s), { title: titleOf.get(s.type + ':' + s.id) || '' }));
+    const by = (st) => mine.filter((r) => r.status === st);
+    const out = {
+      counts: { reports: mine.length, drafts: by('draft').length, submitted: by('submitted').length, approved: by('approved').length, returned: by('returned').length, decks: decks.length, shares: shares.filter((s) => s.state === 'active').length, inbox: inbox.length, reportTemplates: T.TEMPLATES.length, deckTemplates: D.TEMPLATES.length },
+      recentReports: mine.slice(0, 5).map(pick), drafts: by('draft').slice(0, 5).map(pick), returned: by('returned').slice(0, 5).map(pick), inbox: inbox.slice(0, 6).map((r) => Object.assign(pick(r), { ownerName: r.ownerName })),
+      recentDecks: decks.slice(0, 5).map((d) => ({ id: d.id, title: d.title, slides: d.slides, updatedAt: d.updatedAt })), shares: shares.filter((s) => s.state === 'active').slice(0, 5),
+    };
+    if (user.role === 'admin') { out.admin = { allReports: (await listAll()).length, allDecks: ((await listDecks(user, 'all')) || []).length, users: auth.listUsers().length }; }
+    return json(res, 200, out);
   }
 
   // --- روابط المشاركة ---

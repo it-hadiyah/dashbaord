@@ -33,8 +33,8 @@ h1 { font-size: var(--fs-6); text-align: center; margin: 0 0 4px; } .sub { text-
 </main>
 <script>
 (function () {
-  var q = new URLSearchParams(location.search), next = q.get('next') || '/';
-  if (next.charAt(0) !== '/' || next.charAt(1) === '/' || next.indexOf('\\') >= 0) next = '/';
+  var q = new URLSearchParams(location.search), next = q.get('next') || '/dashboard.html';
+  if (next.charAt(0) !== '/' || next.charAt(1) === '/' || next.indexOf('\\') >= 0) next = '/dashboard.html';
   var err = document.getElementById('err'), f = document.getElementById('f'), go = document.getElementById('go');
   fetch('/api/auth-info').then(function (r) { return r.json(); }).then(function (i) {
     document.getElementById('hint').textContent = i.mode === 'ad' ? 'استخدم نفس اسم المستخدم وكلمة المرور الخاصة بحسابك في الدومين' + (i.domain ? ' (' + i.domain + ')' : '') + '.' : 'استخدم الحساب الذي زوّدك به مسؤول النظام.';

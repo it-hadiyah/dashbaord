@@ -14,7 +14,7 @@
 <body>
 <header class="top">
   <div class="brand"><img src="/brand/logo-icon.png" alt="" width="30" height="30"><div><strong>منشئ التقارير والعروض</strong></div></div>
-  <div class="top-actions"><nav class="top-links"><a href="/" class="nav-a">تقرير جديد</a><a href="/list.html" class="nav-a">التقارير</a><a href="/decks.html" class="nav-a on">العروض</a><a href="/admin.html" class="nav-a" id="admin-link" hidden>إدارة النظام</a></nav><span id="user-chip"></span></div>
+  <div class="top-actions"><nav class="top-links"><a href="/dashboard.html" class="nav-a">الرئيسية</a><a href="/" class="nav-a">تقرير جديد</a><a href="/list.html" class="nav-a">التقارير</a><a href="/decks.html" class="nav-a on">العروض</a><a href="/admin.html" class="nav-a" id="admin-link" hidden>إدارة النظام</a></nav><span id="user-chip"></span></div>
 </header>
 <main class="page-wrap">
   <h1>العروض التقديمية</h1>
@@ -25,14 +25,14 @@
   <div id="list" class="rlist" aria-live="polite" style="margin-top:12px"></div>
   <div id="empty" class="empty" hidden><b>لا توجد عروض بعد</b><small>اختر قالباً من الأسفل لبدء عرضك الأول.</small></div>
 
-  <h2 style="margin-top:32px">عرض جديد</h2>
+  <h2 style="margin-top:32px" id="new">عرض جديد</h2>
   <div class="two" style="gap:16px;margin:8px 0 14px;align-items:end">
     <label class="fld"><span>مقاس الشرائح</span><select id="ratio"><option value="16:9">عريض 16:9</option><option value="4:3">قياسي 4:3</option></select></label>
     <label class="chk"><input type="checkbox" id="sample"> ابدأ ببيانات تجريبية توضيحية</label>
   </div>
   <div id="tpls" class="tgrid"></div>
 
-  <h2 style="margin-top:32px">تحويل تقرير إلى عرض</h2>
+  <h2 style="margin-top:32px" id="convert">تحويل تقرير إلى عرض</h2>
   <div class="two" style="gap:16px;align-items:end">
     <label class="fld"><span>التقرير</span><select id="rep"></select></label>
     <label class="fld"><span>أقصى عدد للشرائح</span><input id="maxs" type="number" min="4" max="60" value="10"></label>
