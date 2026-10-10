@@ -52,6 +52,31 @@ function startFromTemplate(tpl, sample) {
   history.replaceState(null, '', '/');
 }
 
+async function startFromCustom(t) {
+  try {
+    const r = await fetch('/api/custom-templates/' + t.id); const o = await r.json(); if (!r.ok) throw new Error(o.error || 'تعذر تحميل القالب');
+    const rep = o.payload; rep.id = null; rep.date = new Date().toISOString().slice(0, 10);
+    enterEditor(rep, { dirty: true, focusTitle: true }); history.replaceState(null, '', '/');
+  } catch (e) { toast(e.message, { tone: 'err' }); }
+}
+
+function saveAsTemplate() {
+  const name = el('input', { type: 'text', value: store.report.title || '', placeholder: 'اسم القالب', 'aria-label': 'اسم القالب' }), desc = el('input', { type: 'text', placeholder: 'وصف مختصر (اختياري)', 'aria-label': 'الوصف' });
+  const keep = el('input', { type: 'checkbox' }), shared = el('input', { type: 'checkbox' }), me = store.role;
+  const m = modal('حفظ كقالب مخصص', el('div', { class: 'imp' },
+    el('p', { class: 'muted' }, 'يُحفظ هيكل التقرير وتصميمه كقالب تعيد استخدامه لاحقاً. تُفرَّغ الأرقام والنصوص افتراضياً وتبقى العناوين والأعمدة.'),
+    el('label', { class: 'imp-map' }, el('span', {}, 'اسم القالب *'), name), el('label', { class: 'imp-map' }, el('span', {}, 'الوصف'), desc),
+    el('label', { class: 'chk' }, keep, 'الاحتفاظ بالبيانات الحالية كأمثلة'),
+    me === 'employee' ? null : el('label', { class: 'chk' }, shared, me === 'admin' ? 'اعتماده كقالب رسمي يراه الجميع' : 'مشاركته مع الجميع'),
+    el('div', { class: 'dlg-actions' }, btn('إلغاء', { cls: 'ghost', onclick: () => m.close() }), btn('حفظ القالب', { cls: 'primary', onclick: async () => {
+      try {
+        const res = await fetch('/api/custom-templates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.value, desc: desc.value, keepData: keep.checked, shared: shared.checked, report: store.report }) });
+        const o = await res.json().catch(() => ({})); if (!res.ok) throw new Error(o.error || 'تعذر الحفظ');
+        m.close(); toast('تم حفظ القالب، ستجده في معرض القوالب', { tone: 'ok' });
+      } catch (e) { toast(e.message, { tone: 'err' }); }
+    } }))));
+}
+
 function draftBanner() {
   const d = S.readDraft(null); const box = $('#draft-banner');
   if (!d || !d.report) { box.hidden = true; return; }
@@ -217,6 +242,7 @@ $('#b-export').onclick = (e) => {
   const menu = el('div', { class: 'menu', role: 'menu', style: `top:${r.bottom + 6}px;inset-inline-start:${document.dir === 'rtl' ? 'auto' : r.left + 'px'};left:${r.left}px` },
     item('print', 'طباعة / حفظ PDF', 'بجودة عالية وبصيغة A4، وتُحفظ الألوان والخطوط', () => { const t = document.title; document.title = fileBase(); P.printPreview(); setTimeout(() => { document.title = t; }, 1500); }),
     item('file', 'تنزيل ملف Word ‏(DOCX)', 'ملف قابل للتحرير: عناوين وجداول وصور للرسوم', async () => { try { const m = await import('./docx.js'); await m.exportDocx(store.report, P.config, fileBase(), store.workflow); toast('تم تجهيز ملف Word', { tone: 'ok' }); } catch (err) { toast('تعذر إنشاء ملف Word: ' + err.message, { tone: 'err' }); } }),
+    item('layout', 'حفظ كقالب مخصص', 'يعيد استخدام الهيكل والتصميم، ويمكن اعتماده كقالب رسمي', saveAsTemplate),
     el('hr'),
     item('download', 'نسخة البيانات (JSON)', 'للنسخ الاحتياطي، والمحتوى منفصل عن الشكل', () => { const a = el('a', { href: URL.createObjectURL(new Blob([JSON.stringify(store.report, null, 2)], { type: 'application/json' })), download: fileBase() + '.json' }); document.body.append(a); a.click(); a.remove(); }),
     store.serverId ? item('link', 'رابط مشاركة', 'رابط بعد الدخول أو بكلمة مرور أو لمستخدمين محددين، مع انتهاء وسجل وصول', async () => { const m = await import('./share-ui.js'); m.openShareDialog({ type: 'report', id: store.serverId, title: store.report.title, warn: store.workflow && store.workflow.status !== 'approved' ? 'هذا التقرير غير معتمد بعد؛ سيرى المستلم ما هو محفوظ حالياً.' : '' }); }) : null,
@@ -259,13 +285,13 @@ window.addEventListener('beforeunload', (e) => { if (store.report && store.dirty
 /* ---------- البدء ---------- */
 (async function boot() {
   const meRes = await fetch('/api/me'); if (!meRes.ok) return;
-  const me = await meRes.json(); store.user = me.username; store.allowed = me.allowedTemplates;
+  const me = await meRes.json(); store.user = me.username; store.role = me.role; store.allowed = me.allowedTemplates;
   mountUserChip($('#user-chip'), me);
   if (me.role === 'admin') $('#admin-link').hidden = false;
   if (me.inbox) { const l = $('#lnk-list'); l.textContent = `التقارير (${me.inbox})`; l.title = 'لديك تقارير بانتظار الاعتماد'; l.href = '/list.html?scope=inbox'; }
   await P.loadConfig();
   $('#orgname').textContent = P.config.orgName || '';
-  buildGallery($('#gallery-root'), startFromTemplate, me.allowedTemplates);
+  buildGallery($('#gallery-root'), startFromTemplate, me.allowedTemplates, startFromCustom);
   draftBanner();
   const id = new URLSearchParams(location.search).get('edit');
   if (id) {

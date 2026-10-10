@@ -59,7 +59,7 @@ function card(tpl, onUse, isFav, onFav) {
   return c;
 }
 
-export function buildGallery(root, onUse, allowed) {
+export function buildGallery(root, onUse, allowed, onCustom) {
   bindMessages();
   let cat = 'الكل', q = '';
   const grid = el('div', { class: 'tgrid' });
@@ -80,5 +80,13 @@ export function buildGallery(root, onUse, allowed) {
   ['الكل', '★'].concat(T.CATEGORIES.filter((c) => c !== 'الكل' && usedCats.has(c))).forEach((c) => chips.append(el('button', { type: 'button', role: 'tab', class: 'chip' + (c === cat ? ' on' : ''), 'aria-selected': String(c === cat), onclick: (e) => { cat = c; chips.querySelectorAll('.chip').forEach((b) => { b.classList.toggle('on', b === e.currentTarget); b.setAttribute('aria-selected', String(b === e.currentTarget)); }); apply(); } }, c === '★' ? '★ المفضلة' : c)));
   const search = el('div', { class: 'search' }, el('span', { html: icon('search', 16) }), el('input', { type: 'search', placeholder: 'ابحث في القوالب...', 'aria-label': 'ابحث في القوالب', oninput: (e) => { q = e.target.value.trim(); apply(); } }));
   if (!list.length) { root.replaceChildren(el('div', { class: 'empty' }, el('span', { html: icon('folder', 32) }), el('b', {}, 'لا توجد أنواع تقارير مسموحة لحسابك'), el('small', {}, 'تواصل مع مسؤول النظام ليحدد لك أنواع التقارير.'))); return; }
-  root.replaceChildren(el('div', { class: 'gal-tools' }, search, chips), grid, empty);
+  const mine = el('div', { class: 'cust', hidden: true });
+  if (onCustom) fetch('/api/custom-templates').then((r) => (r.ok ? r.json() : [])).then((rows) => {
+    if (!rows.length) return; mine.hidden = false;
+    mine.replaceChildren(el('h2', { style: 'margin:8px 0' }, 'القوالب الرسمية وقوالبي'), el('div', { class: 'tgrid' }, rows.map((t) => el('article', { class: 'tcard', style: 'padding:16px;gap:6px' },
+      el('div', { class: 'tmeta' }, el('span', { class: 'tag' }, t.official ? 'قالب رسمي' : t.shared ? 'مشترك' : 'قالبي'), el('span', { class: 'muted', style: 'font-size:12px' }, t.sections + ' قسم')),
+      el('h3', { style: 'margin:4px 0' }, t.name), el('p', { class: 'muted' }, t.desc || (t.ownerName ? 'بواسطة ' + t.ownerName : '')),
+      el('div', { class: 'tact' }, btn('استخدم القالب', { cls: 'primary', onclick: () => onCustom(t) }), t.mine || store.role === 'admin' ? btn('حذف', { cls: 'ghost', onclick: async () => { if (!confirm('حذف القالب «' + t.name + '»؟')) return; const d = await fetch('/api/custom-templates/' + t.id, { method: 'DELETE' }); if (d.ok) { rows.splice(rows.indexOf(t), 1); buildGallery(root, onUse, allowed, onCustom); } } }) : null)))));
+  }).catch(() => {});
+  root.replaceChildren(el('div', { class: 'gal-tools' }, search, chips), mine, grid, empty);
 }

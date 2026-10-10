@@ -333,6 +333,29 @@ async function handleShare(req, res, p) {
   return send(res, 200, html, MIME['.html'], { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
 }
 
+
+/* ---------- القوالب المخصصة ---------- */
+const CT_FILE = 'custom-templates.json';
+const readCT = () => store.readJson(CT_FILE, []);
+function blankSection(sec) {
+  if (sec.type === 'text') return Object.assign(sec, { content: '' });
+  const c = JSON.parse(JSON.stringify(sec.content)), E = T.emptyContent(sec.type);
+  switch (sec.type) {
+    case 'list': c.items = ['']; break;
+    case 'table': c.rows = [Array(c.headers.length).fill(''), Array(c.headers.length).fill('')]; break;
+    case 'kpi': c.items.forEach((k) => { k.value = ''; k.trend = ''; }); break;
+    case 'chart': c.data.forEach((d) => { d.value = ''; }); c.ref = ''; break;
+    case 'progress': c.items.forEach((i) => { i.value = ''; }); break;
+    case 'calc': c.rows.forEach((r) => { if (r.kind === 'input') r.value = ''; }); break;
+    case 'compare': c.rows.forEach((r) => { r.prev = ''; r.curr = ''; }); break;
+    case 'callout': c.text = ''; break;
+    default: return Object.assign(sec, { content: E });
+  }
+  return Object.assign(sec, { content: c });
+}
+const ctPub = (t, user) => ({ id: t.id, name: t.name, desc: t.desc, shared: !!t.shared, official: !!t.official, ownerName: t.ownerName, mine: t.owner === user.username, createdAt: t.createdAt, sections: (t.payload.sections || []).length });
+const ctVisible = (t, user) => t.owner === user.username || t.shared || user.role === 'admin';
+
 /* ---------- الجلسات والمصادقة ---------- */
 const parseCookies = (req) => Object.fromEntries(String(req.headers.cookie || '').split(';').map((c) => { const i = c.indexOf('='); return i < 0 ? [] : [c.slice(0, i).trim(), decodeURIComponent(c.slice(i + 1).trim())]; }).filter((x) => x.length));
 const tokenOf = (req) => parseCookies(req).rb_sid || '';
@@ -399,6 +422,33 @@ async function handleApi(req, res, url, p) {
       }
     } catch (e) { return json(res, 400, { error: e.message }); }
     return json(res, 404, { error: 'غير موجود' });
+  }
+
+  // --- القوالب المخصصة ---
+  if (p === '/api/custom-templates' && method === 'GET') return json(res, 200, readCT().filter((t) => ctVisible(t, user)).map((t) => ctPub(t, user)).sort((a, b) => (b.official ? 1 : 0) - (a.official ? 1 : 0) || String(b.createdAt).localeCompare(String(a.createdAt))));
+  if (p === '/api/custom-templates' && method === 'POST') {
+    const b = JSON.parse(await readBody(req)), name = str(b.name, 100).trim();
+    if (!name) return json(res, 400, { error: 'اسم القالب مطلوب' });
+    const share = !!b.shared;
+    if (share && auth.RANK[user.role] < 1) return json(res, 403, { error: 'مشاركة القوالب للمدير أو المسؤول فقط' });
+    const payload = clean(b.report || {});
+    payload.id = null; payload.sample = false; payload.employee = ''; payload.department = ''; payload.period = '';
+    if (!b.keepData) payload.sections = payload.sections.map(blankSection);
+    const list = readCT(); if (list.filter((t) => t.owner === user.username).length >= 50) return json(res, 400, { error: 'بلغت الحد الأقصى للقوالب (50)' });
+    const t = { id: 'my-' + crypto.randomBytes(5).toString('hex'), name, desc: str(b.desc, 300), owner: user.username, ownerName: user.name, shared: share, official: share && user.role === 'admin', createdAt: new Date().toISOString(), payload };
+    list.push(t); store.writeJson(CT_FILE, list); store.audit({ action: 'template-create', by: user.username, id: t.id, shared: share });
+    return json(res, 201, ctPub(t, user));
+  }
+  const ctm = p.match(/^\/api\/custom-templates\/(my-[a-z0-9]{6,12})$/);
+  if (ctm) {
+    const list = readCT(), t = list.find((x) => x.id === ctm[1]);
+    if (!t || !ctVisible(t, user)) return json(res, 404, { error: 'غير موجود' });
+    if (method === 'GET') return json(res, 200, Object.assign(ctPub(t, user), { payload: t.payload }));
+    if (method === 'DELETE') {
+      if (t.owner !== user.username && user.role !== 'admin') return json(res, 403, { error: 'لا يمكنك حذف هذا القالب' });
+      store.writeJson(CT_FILE, list.filter((x) => x.id !== t.id)); store.audit({ action: 'template-delete', by: user.username, id: t.id }); return json(res, 200, { ok: true });
+    }
+    return json(res, 405, { error: 'غير مدعوم' });
   }
 
   // --- مركز المؤشرات ---
