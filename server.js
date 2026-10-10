@@ -146,10 +146,10 @@ async function readReport(id) { return toReport(JSON.parse(await fs.promises.rea
 
 
 const META_KEYS = ['title', 'subtitle', 'period', 'employee', 'department', 'date', 'palette', 'template'];
-function addSnapshot(rep, user, label) {
+function addSnapshot(K, rep, user, label) {
   const v = rep.versions || (rep.versions = []);
   const n = (v.length ? Math.max(...v.map((x) => x.n)) : 0) + 1;
-  v.push({ n, at: new Date().toISOString(), by: user.username, byName: user.name, label: String(label || 'نسخة').slice(0, 80), status: WF.wf(rep).status, content: clean(rep) });
+  v.push({ n, at: new Date().toISOString(), by: user.username, byName: user.name, label: String(label || 'نسخة').slice(0, 80), status: WF.wf(rep).status, content: K.clean(rep) });
   while (v.length > 12) { const i = v.findIndex((x) => x.label !== 'النسخة المعتمدة'); v.splice(i < 0 ? 0 : i, 1); }
 }
 function diffReports(oldC, newC) {
@@ -161,6 +161,14 @@ function diffReports(oldC, newC) {
     else if (JSON.stringify([o.title, o.visible, o.content, o.source, o.asOf]) !== JSON.stringify([x.title, x.visible, x.content, x.source, x.asOf])) sections.push({ id: x.id, title: x.title, type: x.type, change: 'changed', titleChanged: o.title !== x.title, oldTitle: o.title });
   });
   (oldC.sections || []).forEach((o) => { if (!seen.has(o.id)) sections.push({ id: o.id, title: o.title, type: o.type, change: 'removed' }); });
+  if (oldC.slides || newC.slides) {
+    const key = (c, sl) => JSON.stringify([sl.layout, sl.bg, sl.title, sl.subtitle, sl.bullets, sl.notes, (sl.blockIds || []).map((id) => (c.sections || []).find((x) => x.id === id))]);
+    const os = new Map((oldC.slides || []).map((x) => [x.id, x])), seenS = new Set();
+    (newC.slides || []).forEach((x) => { seenS.add(x.id); const o = os.get(x.id); if (!o) sections.push({ id: x.id, title: 'شريحة: ' + (x.title || ''), type: 'slide', change: 'added' }); else if (key(oldC, o) !== key(newC, x)) sections.push({ id: x.id, title: 'شريحة: ' + (x.title || ''), type: 'slide', change: 'changed' }); });
+    (oldC.slides || []).forEach((o) => { if (!seenS.has(o.id)) sections.push({ id: o.id, title: 'شريحة: ' + (o.title || ''), type: 'slide', change: 'removed' }); });
+    const secOnly = sections.filter((x) => x.type === 'slide');
+    return { meta: META_KEYS.filter((k) => String(oldC[k] || '') !== String(newC[k] || '')).concat(String(oldC.ratio || '') !== String(newC.ratio || '') ? [] : []), sections: secOnly, same: !secOnly.length && !meta.length };
+  }
   return { meta, sections, same: !meta.length && !sections.length };
 }
 const keepMeta = (r) => ({ comments: r.comments || [], versions: r.versions || [], archived: !!r.archived });
@@ -211,7 +219,8 @@ async function listFor(user, scope) {
 async function inboxCount(user) {
   if (user.role === 'employee') return 0;
   const all = await listAll();
-  return all.filter((v) => v.workflow.status === 'submitted' && (user.role === 'admin' || v.workflow.sharedWith === user.username)).length;
+  const nd = ((await listDecks(user, 'inbox')) || []).filter((v) => v.status === 'submitted').length;
+  return nd + all.filter((v) => v.workflow.status === 'submitted' && !v.archived && (user.role === 'admin' || v.workflow.sharedWith === user.username)).length;
 }
 
 
@@ -246,15 +255,17 @@ async function writeDeck(id, content, meta) {
   await fs.promises.writeFile(tmp, JSON.stringify(d, null, 2)); await fs.promises.rename(tmp, deckFile(id));
   return d;
 }
-const deckAccess = (user, d) => { const own = d.owner === user.username; return { read: own || user.role === 'admin', edit: own || user.role === 'admin' }; };
+const deckAccess = (user, d) => WF.access(user, d);
 async function listDecks(user, scope) {
   if (scope === 'all' && user.role !== 'admin') return null;
   const out = [];
   for (const f of (await fs.promises.readdir(DECKS_DIR)).filter((x) => x.endsWith('.json'))) {
     try {
-      const d = JSON.parse(await fs.promises.readFile(path.join(DECKS_DIR, f), 'utf8'));
-      if (scope !== 'all' && d.owner !== user.username) continue;
-      out.push({ id: f.slice(0, -5), title: d.title, subtitle: d.subtitle, slides: (d.slides || []).length, ratio: d.ratio, owner: d.owner, ownerName: d.ownerName, updatedAt: d.updatedAt, createdAt: d.createdAt, template: d.template });
+      const d = JSON.parse(await fs.promises.readFile(path.join(DECKS_DIR, f), 'utf8')), w = WF.wf(d), a = WF.access(user, d), me = user.username, arch = !!d.archived;
+      const ok = scope === 'all' ? true : scope === 'archive' ? d.owner === me && arch : scope === 'inbox' ? !arch && w.status !== 'draft' && (w.sharedWith === me || (user.role === 'admin' && w.status === 'submitted')) : d.owner === me && !arch;
+      if (!ok) continue;
+      const tpl = D.TEMPLATES.find((t) => t.id === d.template);
+      out.push({ id: f.slice(0, -5), kind: 'deck', title: d.title, subtitle: d.subtitle, slides: (d.slides || []).length, ratio: d.ratio, owner: d.owner || '', ownerName: d.ownerName || '', employee: d.presenter || '', department: '', date: d.date || '', updatedAt: d.updatedAt || d.createdAt || '', createdAt: d.createdAt || '', template: d.template, templateName: tpl ? tpl.name : 'عرض تقديمي', archived: arch, comments: (d.comments || []).length, status: w.status, statusLabel: WF.STATUS[w.status] || '', sharedWith: w.sharedWith || '', sharedWithName: w.sharedWithName || '', canEdit: a.edit, canDecide: a.decide });
     } catch (e) { /* تجاهل التالف */ }
   }
   return out.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
@@ -279,7 +290,7 @@ function standaloneHtml(deck, id) {
 async function canShare(user, type, id) {
   try {
     if (!ID_RE.test(id)) return false;
-    if (type === 'deck') return deckAccess(user, await readDeck(id)).edit;
+    if (type === 'deck') { const d = await readDeck(id); return user.role === 'admin' || d.owner === user.username; }
     if (type === 'report') { const r = await readReport(id); return user.role === 'admin' || r.owner === user.username; }
   } catch (e) { /* غير موجود */ }
   return false;
@@ -367,6 +378,62 @@ const deny = (msg) => Object.assign(new Error(msg), { status: 403 });
 const redirect = (res, to) => { res.writeHead(302, { Location: to, 'Cache-Control': 'no-store' }); res.end(); };
 const page403 = (res, msg) => send(res, 403, `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>غير مصرّح</title><link rel="stylesheet" href="/css/tokens.css"><body style="font-family:var(--font);display:grid;place-items:center;min-height:100vh;margin:0;background:#f3f5f8"><div style="text-align:center;background:#fff;padding:40px 48px;border-radius:16px;box-shadow:0 4px 24px #0002"><h1 style="margin:0 0 8px">غير مصرّح</h1><p style="color:#647385">${msg}</p><p><a href="/">العودة للرئيسية</a></p></div></body></html>`, MIME['.html']);
 const PROTECTED_PAGES = new Set(['/', '/index.html', '/list.html', '/admin.html', '/decks.html', '/deck.html', '/dashboard.html', '/indicators.html']);
+
+
+const REPORT_K = { kind: 'report', clean: (r) => clean(r), write: (id, rec, meta) => writeReport(id, rec, meta) };
+const DECK_K = { kind: 'deck', clean: (r) => cleanDeck(r), write: (id, rec, meta) => writeDeck(id, rec, meta) };
+async function wfApi(K, { id, act, vnum, method, req, res, user, rep, acc }) {
+  if (act === 'versions' && method === 'GET') {
+    if (vnum) {
+      const v = (rep.versions || []).find((x) => x.n === +vnum); if (!v) return json(res, 404, { error: 'النسخة غير موجودة' });
+      return json(res, 200, { n: v.n, at: v.at, byName: v.byName, label: v.label, status: v.status, title: v.content.title, diff: diffReports(v.content, K.clean(rep)) });
+    }
+    return json(res, 200, (rep.versions || []).map((v) => ({ n: v.n, at: v.at, byName: v.byName, label: v.label, status: v.status, sections: (v.content.sections || []).length })).reverse());
+  }
+  if (act && method === 'POST') {
+    const body = JSON.parse((await readBody(req, 20000)) || '{}');
+    try {
+      if (act === 'share') {
+        if (!acc.share) throw deny('لا يمكن الإرسال في الحالة الحالية');
+        if (!rep.title.trim()) throw new Error('أدخل العنوان أولاً');
+        const mgr = auth.find(body.manager);
+        if (!mgr || mgr.disabled || auth.RANK[mgr.role] < 1) throw new Error('اختر مديراً صحيحاً');
+        if (mgr.username === user.username) throw new Error('لا يمكنك الإرسال لنفسك');
+        const ap = auth.approversOf(user);
+        if (ap.restricted && !ap.list.some((m) => m.username === mgr.username)) throw deny(ap.list.length ? 'هذا المدير ليس معتمِدك. المعتمِد المحدد لك: ' + ap.list.map((m) => m.name).join('، ') : 'المعتمِد المحدد لك غير متاح حالياً. تواصل مع مسؤول النظام.');
+        WF.actions.share(rep, user, { manager: mgr, note: body.note });
+      } else if (act === 'withdraw') { if (!acc.withdraw) throw deny('غير متاح'); WF.actions.withdraw(rep, user); }
+      else if (act === 'approve') { if (!acc.decide) throw deny('غير مصرّح لك بالاعتماد'); WF.actions.approve(rep, user, body); }
+      else if (act === 'return') { if (!acc.decide) throw deny('غير مصرّح لك بالإعادة'); WF.actions.return(rep, user, body); }
+      else if (act === 'reopen') { if (!acc.reopen) throw deny('غير متاح'); WF.actions.reopen(rep, user); }
+      else if (act === 'comment') {
+        const text = String(body.text || '').trim().slice(0, 1000); if (!text) throw new Error('اكتب التعليق أولاً');
+        rep.comments = (rep.comments || []).concat([{ id: crypto.randomBytes(4).toString('hex'), at: new Date().toISOString(), by: user.username, byName: user.name, text }]).slice(-300);
+      } else if (act === 'archive' || act === 'unarchive') {
+        if (!(acc.owner || acc.admin)) throw deny('للمالك أو المسؤول فقط');
+        if (act === 'archive' && WF.wf(rep).status === 'submitted') throw new Error('لا يمكن الأرشفة أثناء انتظار الاعتماد');
+        rep.archived = act === 'archive'; WF.push(rep, user, act);
+      } else if (act === 'snapshot') {
+        if (!(acc.owner || acc.admin)) throw deny('للمالك أو المسؤول فقط');
+        addSnapshot(K, rep, user, body.label || 'نسخة يدوية'); WF.push(rep, user, 'snapshot', body.label);
+      } else if (act === 'restore') {
+        if (!acc.edit) throw deny('لا يمكنك التعديل في الحالة الحالية');
+        const v = (rep.versions || []).find((x) => x.n === +body.n); if (!v) throw new Error('النسخة غير موجودة');
+        addSnapshot(K, rep, user, 'قبل الاستعادة'); Object.assign(rep, JSON.parse(JSON.stringify(v.content)), { id }); WF.push(rep, user, 'restore', 'النسخة ' + v.n);
+      }
+      else if (act === 'owner') {
+        if (!acc.reassign) throw deny('للمسؤول فقط');
+        const nu = auth.find(body.username); if (!nu) throw new Error('المستخدم غير موجود');
+        rep.owner = nu.username; rep.ownerName = nu.name; WF.push(rep, user, 'reassign', 'إلى ' + nu.name);
+      }
+      if (['share', 'approve', 'return'].includes(act)) addSnapshot(K, rep, user, { share: 'مُرسلة للاعتماد', approve: 'النسخة المعتمدة', return: 'قبل الإعادة للتعديل' }[act]);
+    } catch (e) { return json(res, e.status || 400, { error: e.message }); }
+    await K.write(id, rep, Object.assign({ owner: rep.owner, ownerName: rep.ownerName, workflow: rep.workflow, history: rep.history, createdAt: rep.createdAt, updatedAt: new Date().toISOString() }, keepMeta(rep)));
+    store.audit({ action: K.kind + '-' + act, by: user.username, id, to: rep.workflow && rep.workflow.sharedWith });
+    return json(res, 200, { ok: true, workflow: rep.workflow, comments: rep.comments, archived: !!rep.archived });
+  }
+  return json(res, 405, { error: 'غير مدعوم' });
+}
 
 async function handleApi(req, res, url, p) {
   const method = req.method;
@@ -491,14 +558,16 @@ async function handleApi(req, res, url, p) {
   // --- لوحة الرئيسية ---
   if (p === '/api/dashboard' && method === 'GET') {
     const mine = await listFor(user, 'mine'), decks = (await listDecks(user, 'mine')) || [];
-    const inbox = user.role === 'employee' ? [] : await listFor(user, 'inbox');
+    const inboxR = user.role === 'employee' ? [] : await listFor(user, 'inbox');
+    const inboxD = user.role === 'employee' ? [] : ((await listDecks(user, 'inbox')) || []).filter((x) => x.status === 'submitted');
+    const inbox = inboxR.concat(inboxD);
     const pick = (r) => ({ id: r.id, title: r.title, status: r.status, statusLabel: r.statusLabel, updatedAt: r.updatedAt, templateName: r.templateName });
     const titleOf = new Map(mine.map((r) => ['report:' + r.id, r.title]).concat(decks.map((d) => ['deck:' + d.id, d.title])));
     const shares = SH.listByOwner(user.username).map((s) => Object.assign(SH.pub(s), { title: titleOf.get(s.type + ':' + s.id) || '' }));
     const by = (st) => mine.filter((r) => r.status === st);
     const out = {
       counts: { reports: mine.length, drafts: by('draft').length, submitted: by('submitted').length, approved: by('approved').length, returned: by('returned').length, decks: decks.length, shares: shares.filter((s) => s.state === 'active').length, inbox: inbox.length, reportTemplates: T.TEMPLATES.length, deckTemplates: D.TEMPLATES.length },
-      recentReports: mine.slice(0, 5).map(pick), drafts: by('draft').slice(0, 5).map(pick), returned: by('returned').slice(0, 5).map(pick), inbox: inbox.slice(0, 6).map((r) => Object.assign(pick(r), { ownerName: r.ownerName })),
+      recentReports: mine.slice(0, 5).map(pick), drafts: by('draft').slice(0, 5).map(pick), returned: by('returned').slice(0, 5).map(pick), inbox: inbox.slice(0, 6).map((r) => Object.assign(pick(r), { ownerName: r.ownerName, kind: r.kind || 'report' })),
       recentDecks: decks.slice(0, 5).map((d) => ({ id: d.id, title: d.title, slides: d.slides, updatedAt: d.updatedAt })), shares: shares.filter((s) => s.state === 'active').slice(0, 5),
     };
     if (user.role === 'admin') { out.admin = { allReports: (await listAll()).length, allDecks: ((await listDecks(user, 'all')) || []).length, users: auth.listUsers().length }; }
@@ -541,30 +610,34 @@ async function handleApi(req, res, url, p) {
     const data = JSON.parse(await readBody(req));
     if (!str(data.title).trim()) return json(res, 400, { error: 'عنوان العرض مطلوب' });
     const id = Date.now().toString(36) + '-' + crypto.randomBytes(3).toString('hex'), now = new Date().toISOString();
-    await writeDeck(id, data, { owner: user.username, ownerName: user.name, createdAt: now, updatedAt: now });
+    await writeDeck(id, data, { owner: user.username, ownerName: user.name, workflow: { status: 'draft' }, history: [{ at: now, by: user.username, byName: user.name, action: 'create', note: '' }], createdAt: now, updatedAt: now });
     store.audit({ action: 'deck-create', by: user.username, id });
     return json(res, 201, { id, url: '/decks/' + id + '.html' });
   }
-  const dm = p.match(/^\/api\/decks\/([a-z0-9-]+)(?:\/(export\.html))?$/);
+  const dm = p.match(/^\/api\/decks\/([a-z0-9-]+)(?:\/(export\.html|share|withdraw|approve|return|reopen|owner|comment|archive|unarchive|snapshot|restore|versions)(?:\/(\d+))?)?$/);
   if (dm) {
     if (!ID_RE.test(dm[1])) return json(res, 404, { error: 'غير موجود' });
-    const did = dm[1], dk = await readDeck(did), dacc = deckAccess(user, dk);
+    const did = dm[1], dk = await readDeck(did), dacc = deckAccess(user, dk), dact = dm[2];
     if (!dacc.read) return json(res, 403, { error: 'غير مصرّح لك بهذا العرض' });
-    if (dm[2] && method === 'GET') {
+    if (dact === 'export.html' && method === 'GET') {
       store.audit({ action: 'deck-export-html', by: user.username, id: did });
       return send(res, 200, standaloneHtml(dk, did), MIME['.html'], { 'Content-Disposition': `attachment; filename="deck-${did}.html"`, 'Cache-Control': 'no-store' });
     }
-    if (method === 'GET') return json(res, 200, Object.assign({}, dk, { access: dacc }));
+    if (dact) {
+      if ((method === 'POST' && dact !== 'versions') || (method === 'GET' && dact === 'versions')) return await wfApi(DECK_K, { id: did, act: dact, vnum: dm[3], method, req, res, user, rep: dk, acc: dacc });
+      return json(res, 405, { error: 'غير مدعوم' });
+    }
+    if (method === 'GET') { const { versions, ...rest } = dk; return json(res, 200, Object.assign({}, rest, { versionCount: (versions || []).length, access: dacc, statusLabel: WF.STATUS[WF.wf(dk).status] })); }
     if (method === 'PUT') {
-      if (!dacc.edit) return json(res, 403, { error: 'لا يمكنك تعديل هذا العرض' });
+      if (!dacc.edit) return json(res, 403, { error: WF.wf(dk).status === 'approved' ? 'العرض معتمد ولا يمكن تعديله' : WF.wf(dk).status === 'submitted' ? 'العرض بانتظار الاعتماد ولا يمكن تعديله الآن' : 'لا يمكنك تعديل هذا العرض' });
       const data = JSON.parse(await readBody(req));
       if (!str(data.title).trim()) return json(res, 400, { error: 'عنوان العرض مطلوب' });
-      await writeDeck(did, data, { owner: dk.owner, ownerName: dk.ownerName, createdAt: dk.createdAt, updatedAt: new Date().toISOString() });
+      await writeDeck(did, data, Object.assign({ owner: dk.owner, ownerName: dk.ownerName, workflow: dk.workflow, history: dk.history, createdAt: dk.createdAt, updatedAt: new Date().toISOString() }, keepMeta(dk)));
       store.audit({ action: 'deck-update', by: user.username, id: did });
       return json(res, 200, { id: did, url: '/decks/' + did + '.html' });
     }
     if (method === 'DELETE') {
-      if (!dacc.edit) return json(res, 403, { error: 'لا يمكنك حذف هذا العرض' });
+      if (!(dacc.owner || dacc.admin) || WF.wf(dk).status === 'submitted') return json(res, 403, { error: 'لا يمكنك حذف هذا العرض الآن' });
       await fs.promises.unlink(deckFile(did)); SH.removeFor('deck', did); store.audit({ action: 'deck-delete', by: user.username, id: did });
       return json(res, 200, { ok: true });
     }
@@ -594,13 +667,7 @@ async function handleApi(req, res, url, p) {
   if (!acc.read) return json(res, 403, { error: 'غير مصرّح لك بهذا التقرير' });
 
   if (!act && method === 'GET') { const { versions, ...rest } = rep; return json(res, 200, Object.assign({}, rest, { versionCount: (versions || []).length, access: acc, statusLabel: WF.STATUS[WF.wf(rep).status] })); }
-  if (act === 'versions' && method === 'GET') {
-    if (m[3]) {
-      const v = (rep.versions || []).find((x) => x.n === +m[3]); if (!v) return json(res, 404, { error: 'النسخة غير موجودة' });
-      return json(res, 200, { n: v.n, at: v.at, byName: v.byName, label: v.label, status: v.status, title: v.content.title, diff: diffReports(v.content, clean(rep)) });
-    }
-    return json(res, 200, (rep.versions || []).map((v) => ({ n: v.n, at: v.at, byName: v.byName, label: v.label, status: v.status, sections: (v.content.sections || []).length })).reverse());
-  }
+  if (act && ((method === 'POST' && act !== 'versions') || (method === 'GET' && act === 'versions'))) return await wfApi(REPORT_K, { id, act, vnum: m[3], method, req, res, user, rep, acc });
   if (!act && method === 'PUT') {
     if (!acc.edit) return json(res, 403, { error: WF.wf(rep).status === 'approved' ? 'التقرير معتمد ولا يمكن تعديله' : WF.wf(rep).status === 'submitted' ? 'التقرير بانتظار الاعتماد. اسحبه أولاً لتعديله' : 'غير مصرّح لك بالتعديل' });
     const data = JSON.parse(await readBody(req));
@@ -610,48 +677,6 @@ async function handleApi(req, res, url, p) {
     await writeReport(id, data, Object.assign({ owner: rep.owner, ownerName: rep.ownerName, workflow: rep.workflow, history: rep.history, createdAt: rep.createdAt, updatedAt: new Date().toISOString() }, keepMeta(rep)));
     store.audit({ action: 'report-update', by: user.username, id });
     return json(res, 200, { id, url: '/reports/' + id + '.html' });
-  }
-  if (act && method === 'POST') {
-    const body = JSON.parse((await readBody(req, 20000)) || '{}');
-    try {
-      if (act === 'share') {
-        if (!acc.share) throw deny('لا يمكن إرسال التقرير في حالته الحالية');
-        if (!rep.title.trim()) throw new Error('أدخل عنوان التقرير أولاً');
-        const mgr = auth.find(body.manager);
-        if (!mgr || mgr.disabled || auth.RANK[mgr.role] < 1) throw new Error('اختر مديراً صحيحاً');
-        if (mgr.username === user.username) throw new Error('لا يمكنك إرسال التقرير لنفسك');
-        const ap = auth.approversOf(user);
-        if (ap.restricted && !ap.list.some((m) => m.username === mgr.username)) throw deny(ap.list.length ? 'هذا المدير ليس معتمِدك. المعتمِد المحدد لك: ' + ap.list.map((m) => m.name).join('، ') : 'المعتمِد المحدد لك غير متاح حالياً. تواصل مع مسؤول النظام.');
-        WF.actions.share(rep, user, { manager: mgr, note: body.note });
-      } else if (act === 'withdraw') { if (!acc.withdraw) throw deny('غير متاح'); WF.actions.withdraw(rep, user); }
-      else if (act === 'approve') { if (!acc.decide) throw deny('غير مصرّح لك بالاعتماد'); WF.actions.approve(rep, user, body); }
-      else if (act === 'return') { if (!acc.decide) throw deny('غير مصرّح لك بالإعادة'); WF.actions.return(rep, user, body); }
-      else if (act === 'reopen') { if (!acc.reopen) throw deny('غير متاح'); WF.actions.reopen(rep, user); }
-      else if (act === 'comment') {
-        const text = String(body.text || '').trim().slice(0, 1000); if (!text) throw new Error('اكتب التعليق أولاً');
-        rep.comments = (rep.comments || []).concat([{ id: crypto.randomBytes(4).toString('hex'), at: new Date().toISOString(), by: user.username, byName: user.name, text }]).slice(-300);
-      } else if (act === 'archive' || act === 'unarchive') {
-        if (!(acc.owner || acc.admin)) throw deny('للمالك أو المسؤول فقط');
-        if (act === 'archive' && WF.wf(rep).status === 'submitted') throw new Error('لا يمكن أرشفة تقرير بانتظار الاعتماد');
-        rep.archived = act === 'archive'; WF.push(rep, user, act);
-      } else if (act === 'snapshot') {
-        if (!(acc.owner || acc.admin)) throw deny('للمالك أو المسؤول فقط');
-        addSnapshot(rep, user, body.label || 'نسخة يدوية'); WF.push(rep, user, 'snapshot', body.label);
-      } else if (act === 'restore') {
-        if (!acc.edit) throw deny('لا يمكنك تعديل هذا التقرير');
-        const v = (rep.versions || []).find((x) => x.n === +body.n); if (!v) throw new Error('النسخة غير موجودة');
-        addSnapshot(rep, user, 'قبل الاستعادة'); Object.assign(rep, JSON.parse(JSON.stringify(v.content)), { id }); WF.push(rep, user, 'restore', 'النسخة ' + v.n);
-      }
-      else if (act === 'owner') {
-        if (!acc.reassign) throw deny('للمسؤول فقط');
-        const nu = auth.find(body.username); if (!nu) throw new Error('المستخدم غير موجود');
-        rep.owner = nu.username; rep.ownerName = nu.name; WF.push(rep, user, 'reassign', 'إلى ' + nu.name);
-      }
-      if (['share', 'approve', 'return'].includes(act)) addSnapshot(rep, user, { share: 'مُرسلة للاعتماد', approve: 'النسخة المعتمدة', return: 'قبل الإعادة للتعديل' }[act]);
-    } catch (e) { return json(res, e.status || 400, { error: e.message }); }
-    await writeReport(id, rep, Object.assign({ owner: rep.owner, ownerName: rep.ownerName, workflow: rep.workflow, history: rep.history, createdAt: rep.createdAt, updatedAt: new Date().toISOString() }, keepMeta(rep)));
-    store.audit({ action: 'report-' + act, by: user.username, id, to: rep.workflow && rep.workflow.sharedWith });
-    return json(res, 200, { ok: true, workflow: rep.workflow, comments: rep.comments, archived: !!rep.archived });
   }
   return json(res, 405, { error: 'غير مدعوم' });
 }
@@ -682,7 +707,7 @@ const server = http.createServer(async (req, res) => {
       if (!user) return redirect(res, '/login.html?next=' + encodeURIComponent(req.url));
       const d = await readDeck(dv[1]);
       if (!deckAccess(user, d).read) return page403(res, 'هذا العرض ليس من عروضك.');
-      return send(res, 200, D.renderDeckPage(d, { config: loadConfig(), id: dv[1], indicators: IND.map(), actions: `<a class="btn" href="/deck.html?id=${dv[1]}">تعديل</a><a class="btn" href="/api/decks/${dv[1]}/export.html">تنزيل صفحة ويب</a>` }), MIME['.html'], { 'Cache-Control': 'no-store' });
+      return send(res, 200, D.renderDeckPage(d, { config: loadConfig(), id: dv[1], indicators: IND.map(), wf: true, actions: `<a class="btn" href="/api/decks/${dv[1]}/export.html">تنزيل صفحة ويب</a>` }), MIME['.html'], { 'Cache-Control': 'no-store' });
     }
 
     if (req.method === 'GET' && PROTECTED_PAGES.has(p)) {

@@ -43,7 +43,7 @@ import { mountUserChip } from '/js/userchip.js';
 const fmt = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('ar-SA-u-ca-gregory', { month: 'short', day: 'numeric' }); };
 const kpi = (n, label, href) => el('a', { class: 'db-kpi', href }, el('b', {}, String(n)), el('span', {}, label));
 const card = (title, link, rows, emptyMsg) => el('section', { class: 'db-card' }, el('h2', {}, title, link ? el('a', { href: link[0] }, link[1]) : null), rows.length ? rows : el('div', { class: 'db-empty' }, emptyMsg));
-const rep = (r, extra) => el('div', { class: 'db-li' }, el('div', {}, el('a', { class: 't', href: '/reports/' + r.id + '.html' }, r.title || 'بدون عنوان'), el('div', {}, el('small', {}, [extra, r.templateName, fmt(r.updatedAt)].filter(Boolean).join(' · ')))), el('span', { class: 'chip-status ' + r.status }, r.statusLabel));
+const rep = (r, extra) => el('div', { class: 'db-li' }, el('div', {}, el('a', { class: 't', href: (r.kind === 'deck' ? '/decks/' : '/reports/') + r.id + '.html' }, (r.kind === 'deck' ? '🖥 ' : '') + (r.title || 'بدون عنوان')), el('div', {}, el('small', {}, [extra, r.templateName, fmt(r.updatedAt)].filter(Boolean).join(' · ')))), el('span', { class: 'chip-status ' + r.status }, r.statusLabel));
 (async () => {
   const me = await (await fetch('/api/me')).json();
   mountUserChip(document.getElementById('user-chip'), me);
@@ -51,7 +51,7 @@ const rep = (r, extra) => el('div', { class: 'db-li' }, el('div', {}, el('a', { 
   document.getElementById('hello').textContent = 'مرحباً ' + me.name;
   const d = await (await fetch('/api/dashboard')).json(), c = d.counts;
   const k = document.getElementById('kpis');
-  k.append(kpi(c.reports, 'تقاريري', '/list.html'), kpi(c.drafts, 'مسودات', '/list.html'), kpi(c.submitted, 'بانتظار الاعتماد', '/list.html'), kpi(c.approved, 'معتمدة', '/list.html'), kpi(c.returned, 'أُعيدت للتعديل', '/list.html'), kpi(c.decks, 'عروضي', '/decks.html'), kpi(c.shares, 'روابط مشاركة فعّالة', '/decks.html'));
+  k.append(kpi(c.reports, 'تقاريري', '/list.html'), kpi(c.drafts, 'مسودات', '/list.html'), kpi(c.submitted, 'بانتظار الاعتماد', '/list.html'), kpi(c.approved, 'معتمدة', '/list.html'), kpi(c.returned, 'أُعيدت للتعديل', '/list.html'), kpi(c.decks, 'عروضي', '/list.html?type=deck'), kpi(c.shares, 'روابط مشاركة فعّالة', '/decks.html'));
   if (me.role !== 'employee') k.prepend(kpi(c.inbox, 'بانتظار اعتمادك', '/list.html?scope=inbox'));
   if (d.admin) k.append(kpi(d.admin.allReports, 'كل التقارير', '/list.html?scope=all'), kpi(d.admin.allDecks, 'كل العروض', '/decks.html'), kpi(d.admin.users, 'المستخدمون', '/admin.html'));
   const g = document.getElementById('grid');
@@ -60,7 +60,7 @@ const rep = (r, extra) => el('div', { class: 'db-li' }, el('div', {}, el('a', { 
     card('آخر التقارير', ['/list.html', 'الكل'], d.recentReports.map((r) => rep(r)), 'لم تنشئ تقارير بعد.'),
     card('المسودات', null, d.drafts.map((r) => rep(r)), 'لا توجد مسودات.'),
     card('أُعيدت للتعديل', null, d.returned.map((r) => rep(r)), 'لا توجد تقارير معادة.'),
-    card('آخر العروض التقديمية', ['/decks.html', 'الكل'], d.recentDecks.map((x) => el('div', { class: 'db-li' }, el('div', {}, el('a', { class: 't', href: '/deck.html?id=' + x.id }, x.title || 'بدون عنوان'), el('div', {}, el('small', {}, x.slides + ' شريحة · ' + fmt(x.updatedAt)))), el('a', { class: 'btn sm', href: '/decks/' + x.id + '.html#present', target: '_blank', rel: 'noopener' }, 'عرض'))), 'لا توجد عروض بعد.'),
+    card('آخر العروض التقديمية', ['/list.html?type=deck', 'الكل'], d.recentDecks.map((x) => el('div', { class: 'db-li' }, el('div', {}, el('a', { class: 't', href: '/deck.html?id=' + x.id }, x.title || 'بدون عنوان'), el('div', {}, el('small', {}, x.slides + ' شريحة · ' + fmt(x.updatedAt)))), el('a', { class: 'btn sm', href: '/decks/' + x.id + '.html#present', target: '_blank', rel: 'noopener' }, 'عرض'))), 'لا توجد عروض بعد.'),
     card('الملفات المشاركة', null, d.shares.map((s) => el('div', { class: 'db-li' }, el('div', {}, el('b', {}, s.title || (s.type === 'deck' ? 'عرض' : 'تقرير')), el('div', {}, el('small', {}, (s.mode === 'password' ? 'بكلمة مرور' : s.mode === 'users' ? 'مستخدمون محددون' : 'بعد الدخول') + ' · المشاهدات ' + s.views))), el('a', { class: 'btn sm ghost', href: s.url, target: '_blank', rel: 'noopener' }, 'فتح'))), 'لم تشارك أي ملف بعد.'),
     card('القوالب الرسمية', null, [el('div', { class: 'db-li' }, el('span', {}, c.reportTemplates + ' قالب تقرير (مالية، إدارية، مشاريع، تقنية...)'), el('a', { class: 'btn sm', href: '/' }, 'تصفح')), el('div', { class: 'db-li' }, el('span', {}, c.deckTemplates + ' قالب عرض تقديمي'), el('a', { class: 'btn sm', href: '/decks.html#new' }, 'تصفح'))], ''));
 })();

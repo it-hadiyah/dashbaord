@@ -82,7 +82,7 @@
     const slides = deck.slides.map((s, i) => renderSlide(deck, s, Object.assign({}, ctx, { index: i, total: n }))).join('');
     const notes = JSON.stringify(deck.slides.map((s) => s.notes || ''));
     const base = ctx.assetBase || '';
-    const css = ctx.inlineCss ? `<style>${ctx.inlineCss}</style>` : ['tokens', 'report', 'deck'].map((f) => `<link rel="stylesheet" href="${base}/css/${f}.css">`).join('');
+    const css = ctx.inlineCss ? `<style>${ctx.inlineCss}</style>` : (ctx.wf ? ['tokens', 'report', 'components', 'deck'] : ['tokens', 'report', 'deck']).map((f) => `<link rel="stylesheet" href="${base}/css/${f}.css">`).join('');
     const printOk = ctx.allowPrint !== false;
     return `<!doctype html>
 <html lang="ar" dir="rtl">
@@ -94,15 +94,16 @@
 ${css}
 <style>@page{size:${(RATIOS[deck.ratio] || RATIOS['16:9']).w}px ${(RATIOS[deck.ratio] || RATIOS['16:9']).h}px;margin:0}${printOk ? '' : '@media print{body{display:none}}'}</style>
 </head>
-<body class="deck-view rpt ${deck.ratio === '4:3' ? 'r43' : 'r169'}" style="${rootStyle(deck)}" data-did="${esc(ctx.id || '')}">
+<body class="deck-view rpt ${deck.ratio === '4:3' ? 'r43' : 'r169'}" style="${rootStyle(deck)}" data-did="${esc(ctx.id || '')}" data-rid="${ctx.wf ? esc(ctx.id || '') : ''}" data-kind="deck">
 <div class="dv-bar noprint">
-  <strong>${esc(deck.title || 'عرض تقديمي')}</strong>
-  <span class="dv-actions">${ctx.actions || ''}<button type="button" id="dv-present" class="btn primary">عرض بملء الشاشة</button>${printOk ? '<button type="button" class="btn" onclick="window.print()">طباعة / PDF</button>' : ''}</span>
+  <strong>${esc(deck.title || 'عرض تقديمي')}</strong><span id="vb-status" class="chip-status"></span>
+  <span class="dv-actions" id="vb-actions">${ctx.actions || ''}<button type="button" id="dv-present" class="btn primary">عرض بملء الشاشة</button>${printOk ? '<button type="button" class="btn" onclick="window.print()">طباعة / PDF</button>' : ''}</span>
 </div>
 <div class="dv-stage" id="dv-stage">${slides}</div>
 <div class="dv-pres" id="dv-pres" hidden><div class="dp-view" id="dp-view"></div><div class="dp-ctl noprint"><button type="button" id="dp-prev" aria-label="السابقة">›</button><span id="dp-n"></span><button type="button" id="dp-next" aria-label="التالية">‹</button><button type="button" id="dp-notes">ملاحظات</button><button type="button" id="dp-exit">خروج</button></div><div class="dp-notes" id="dp-nt" hidden></div></div>
 <script>window.__NOTES=${notes.replace(/</g, '\\u003c')};window.__ALLOW_PRINT=${printOk};</script>
 <script src="${base}/js/deck-present.js"></script>
+${ctx.wf ? '<script src="/js/guard.js"></script><script type="module" src="/js/viewbar.js"></script><div id="toasts" class="toasts"></div>' : ''}
 </body>
 </html>`;
   }

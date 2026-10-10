@@ -4,6 +4,7 @@ import { store, load, edit, on, undo, redo, canUndo, canRedo } from './store.js'
 import { sectionEditor, field, textInput, segmented } from './editors.js';
 import { mountUserChip } from './userchip.js';
 import { loadIndicators, getIndicatorMap } from './indicators-cache.js';
+import { shareDialog } from './workflow-ui.js';
 
 const D = window.RBD, T = window.RBT;
 const $ = (id) => document.getElementById(id);
@@ -228,6 +229,7 @@ on((kind) => {
 
 $('b-undo').onclick = () => undo(); $('b-redo').onclick = () => redo();
 $('b-save').onclick = () => save(false);
+$('b-share').onclick = async () => { if (!(await ensureSaved())) return; if (await shareDialog(serverId, 'deck')) location.href = '/decks/' + serverId + '.html'; };
 $('b-export').onclick = exportMenu;
 $('b-present').onclick = async () => { if (await ensureSaved()) window.open('/decks/' + serverId + '.html#present', '_blank'); };
 document.addEventListener('keydown', (e) => {
@@ -249,7 +251,10 @@ addEventListener('beforeunload', (e) => { if (store.dirty) { e.preventDefault();
   if (!serverId) { location.href = '/decks.html'; return; }
   const res = await fetch('/api/decks/' + serverId);
   if (!res.ok) { toast('تعذر فتح العرض', { tone: 'err' }); setTimeout(() => (location.href = '/decks.html'), 1200); return; }
-  const d = await res.json(); delete d.access;
+  const d = await res.json(); const acc = d.access || {}; delete d.access;
+  if (!acc.edit) { toast('لا يمكن تعديل هذا العرض في حالته الحالية (' + (d.statusLabel || '') + ')', { tone: 'err' }); setTimeout(() => (location.href = '/decks/' + serverId + '.html'), 1500); return; }
+  if (!acc.share) $('b-share').hidden = true;
+  if (d.workflow && d.workflow.status === 'returned') toast('أعاد ' + (d.workflow.decidedByName || 'المدير') + ' العرض للتعديل: ' + (d.workflow.decisionNote || ''), { tone: 'err', ms: 9000 });
   load(d, { serverId });
   store.dirty = false; status('');
 })();
