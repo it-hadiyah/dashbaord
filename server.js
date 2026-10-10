@@ -13,6 +13,7 @@ const auth = require('./lib/auth');
 const WF = require('./lib/workflow');
 const store = require('./lib/store');
 const SH = require('./lib/shares');
+const AI = require('./lib/ai');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -283,6 +284,7 @@ async function canShare(user, type, id) {
   return false;
 }
 const unlockFails = new Map();
+const aiHits = new Map();
 const shareCookie = (tok) => 'rb_s_' + tok.slice(0, 12);
 const msgPage = (res, code, title, msg) => send(res, code, `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${R.escRaw(title)}</title><link rel="stylesheet" href="/css/tokens.css"><body style="font-family:var(--font,Tahoma);display:grid;place-items:center;min-height:100vh;margin:0;background:#eef2f5"><div style="background:#fff;padding:32px 40px;border-radius:16px;max-width:460px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.12)"><img src="/brand/logo-icon.png" width="48" alt=""><h2>${R.escRaw(title)}</h2><p>${R.escRaw(msg)}</p></div></body></html>`, MIME['.html'], { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
 const pwPage = (res, tok, err) => send(res, 200, `<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>محتوى محمي</title><link rel="stylesheet" href="/css/tokens.css"><body style="font-family:var(--font,Tahoma);display:grid;place-items:center;min-height:100vh;margin:0;background:#eef2f5"><form method="post" action="/s/${tok}/unlock" style="background:#fff;padding:32px 40px;border-radius:16px;max-width:420px;width:90%;box-shadow:0 8px 30px rgba(0,0,0,.12)"><img src="/brand/logo-icon.png" width="48" alt=""><h2>محتوى محمي بكلمة مرور</h2>${err ? `<p style="color:#b3382a">${R.escRaw(err)}</p>` : ''}<input type="password" name="password" autofocus required placeholder="كلمة المرور" aria-label="كلمة المرور" style="width:100%;padding:12px;border:1px solid #cfd8e0;border-radius:10px;font:inherit;box-sizing:border-box"><button style="margin-top:14px;width:100%;padding:12px;border:0;border-radius:10px;background:#007f73;color:#fff;font:inherit;cursor:pointer">فتح</button></form></body></html>`, MIME['.html'], { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
@@ -396,6 +398,27 @@ async function handleApi(req, res, url, p) {
       }
     } catch (e) { return json(res, 400, { error: e.message }); }
     return json(res, 404, { error: 'غير موجود' });
+  }
+
+  // --- مساعد الكتابة (الخادم فقط) ---
+  if (p === '/api/ai/status' && method === 'GET') return json(res, 200, { enabled: !!auth.getSettings().aiEnabled && AI.configured(), configured: AI.configured(), adminEnabled: !!auth.getSettings().aiEnabled });
+  if (p === '/api/ai/assist' && method === 'POST') {
+    if (!auth.getSettings().aiEnabled) return json(res, 403, { error: 'المساعد الذكي غير مفعّل. يفعّله مسؤول النظام من لوحة الإدارة.' });
+    if (!AI.configured()) return json(res, 503, { error: 'لم يُضبط مفتاح الخدمة على الخادم بعد.' });
+    const now = Date.now(), h = (aiHits.get(user.username) || []).filter((t) => now - t < 3600000);
+    if (h.length >= 20) return json(res, 429, { error: 'تجاوزت الحد (20 طلباً في الساعة).' });
+    const b = JSON.parse(await readBody(req, 200000));
+    const sec = cleanSection(b.section || {});
+    if (!['kpi', 'chart', 'table', 'compare', 'calc', 'progress', 'timeline', 'gantt', 'list'].includes(sec.type) || R.isEmptySection(sec)) return json(res, 400, { error: 'اختر قسماً يحتوي بيانات فعلية.' });
+    h.push(now); aiHits.set(user.username, h);
+    try {
+      let computed = null;
+      if (sec.type === 'calc') { const ev = C.evalCalc(sec.content); computed = (sec.content.rows || []).map((r) => ({ البند: r.label, القيمة: ev.errors[r.key] ? 'خطأ: ' + ev.errors[r.key] : C.fmtRow(ev.values[r.key], r) })); }
+      else if (sec.type === 'compare') { const d = sec.content.decimals; computed = C.compareRows(sec.content).map((r) => ({ البند: r.label, السابق: r.prev, الحالي: r.curr, الفرق: r.change, نسبة_التغيير: r.pct === null || r.pct === undefined ? null : C.fmtNum(Math.abs(r.pct), d) + '%', الاتجاه: r.dir })); }
+      const out = await AI.assist({ action: String(b.action), title: str(b.title, 200), section: sec, computed });
+      store.audit({ action: 'ai-assist', by: user.username, kind: b.action, section: sec.type, unverified: out.unverified.length });
+      return json(res, 200, out);
+    } catch (e) { return json(res, 502, { error: e.message }); }
   }
 
   // --- لوحة الرئيسية ---

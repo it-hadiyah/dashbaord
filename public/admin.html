@@ -33,6 +33,13 @@
   </section>
 
   <section class="card-a">
+    <h2>المساعد الذكي للكتابة</h2>
+    <label class="chk"><input type="checkbox" id="ai-on"> تفعيل المساعد الذكي (اقتراح ملخص/تحليل/توصيات من بيانات القسم)</label>
+    <p class="muted" id="ai-sum"></p>
+    <p class="tip">عند التفعيل تُرسَل بيانات القسم الذي يختاره المستخدم فقط إلى خدمة Anthropic عبر الخادم. المفتاح يُضبط على الخادم (متغير البيئة ANTHROPIC_API_KEY أو الملف data/ai-key.txt) ولا يظهر في المتصفح. الناتج مسودة تُراجَع، وتُحذَّر أي أرقام لا توجد في البيانات.</p>
+  </section>
+
+  <section class="card-a">
     <h2>أنواع التقارير الافتراضية للمستخدمين الجدد</h2>
     <p class="muted" id="def-sum"></p>
     <div class="btns"><button type="button" class="btn" id="def-edit">تعديل الافتراضي</button></div>
@@ -150,6 +157,11 @@ async function editTemplates(list) {
   if (v === undefined) return;
   try { for (const u of list) await api('/api/admin/users/' + u.username, 'PATCH', { allowedTemplates: v }); toast('تم حفظ أنواع التقارير', { tone: 'ok' }); loadUsers(); loadAudit(); } catch (e) { toast(e.message, { tone: 'err' }); }
 }
+async function loadAi() {
+  const st = await (await fetch('/api/ai/status')).json(); const cb = document.getElementById('ai-on');
+  cb.checked = !!st.adminEnabled; document.getElementById('ai-sum').textContent = st.configured ? 'مفتاح الخدمة مضبوط على الخادم.' : 'مفتاح الخدمة غير مضبوط على الخادم بعد، لذا لن يعمل المساعد حتى يُضبط.';
+  cb.onchange = async () => { try { await api('/api/admin/settings', 'PUT', { aiEnabled: cb.checked }); toast(cb.checked ? 'تم تفعيل المساعد' : 'تم إيقاف المساعد', { tone: 'ok' }); } catch (e) { cb.checked = !cb.checked; toast(e.message, { tone: 'err' }); } };
+}
 async function loadDefaults() { const s = await api('/api/admin/settings'); document.getElementById('def-sum').textContent = 'الافتراضي الحالي: ' + (Array.isArray(s.defaultTemplates) ? `${s.defaultTemplates.length} من ${TPL.length} أنواع` : 'كل الأنواع'); window.__defTpl = s.defaultTemplates; }
 document.getElementById('def-edit').onclick = async () => { const v = await pickTemplates('الأنواع الافتراضية للمستخدمين الجدد', window.__defTpl, 'تُطبَّق على كل مستخدم جديد (موظف أو مدير).'); if (v === undefined) return; try { await api('/api/admin/settings', 'PUT', { defaultTemplates: v }); toast('تم الحفظ', { tone: 'ok' }); loadDefaults(); loadAudit(); } catch (e) { toast(e.message, { tone: 'err' }); } };
 
@@ -175,7 +187,7 @@ document.getElementById('add').onsubmit = async (e) => {
   me = await (await fetch('/api/me')).json(); mountUserChip(document.getElementById('user-chip'), me);
   const info = await (await fetch('/api/auth-info')).json();
   document.getElementById('mode').textContent = info.mode === 'ad' ? 'طريقة الدخول: حسابات الدومين' + (info.domain ? ' (' + info.domain + ')' : '') + ' + حسابات محلية احتياطية.' : 'طريقة الدخول: حسابات محلية فقط.';
-  loadUsers(); loadAudit(); loadDefaults();
+  loadUsers(); loadAudit(); loadDefaults(); loadAi();
 })();
 </script>
 </body>

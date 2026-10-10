@@ -5,6 +5,8 @@ import { edit, store } from './store.js';
 import * as T from './templates.js';
 import { iconButton, pickIcon, iconSrc } from './iconpicker.js';
 import { importButton } from './importer.js';
+let aiSt = null;
+const aiStatus = () => (aiSt || (aiSt = fetch('/api/ai/status').then((r) => (r.ok ? r.json() : { enabled: false })).catch(() => ({ enabled: false }))));
 
 const RBR = window.RBR;
 let uidn = 0;
@@ -48,7 +50,9 @@ function richText(s) {
     ['type', 'فقرة عادية', cmd('formatBlock', 'p')], ['eraser', 'إزالة التنسيق', cmd('removeFormat')],
   ];
   const bar = el('div', { class: 'rte-bar', role: 'toolbar', 'aria-label': 'تنسيق النص' }, tools.map(([ic, t, fn]) => { const b = iconBtn(ic, t, fn); b.addEventListener('mousedown', (e) => e.preventDefault()); return b; }));
-  return el('div', { class: 'rte-wrap' }, bar, area);
+  const aiRow = el('div', { class: 'btns', style: 'margin-top:8px' });
+  aiStatus().then((st) => { if (st.enabled && store.report && store.report.sections) aiRow.append(btn('اقتراح بالذكاء الاصطناعي', { icon: 'sparkle', cls: 'sm ghost', title: 'يكتب مسودة من بيانات قسم تختاره، دون اختلاق أرقام', onclick: async () => { const m = await import('./ai-ui.js'); m.aiDialog(s); } })); });
+  return el('div', { class: 'rte-wrap' }, bar, area, aiRow);
 }
 
 /* ---------- محرر الصفوف العام (مؤشرات، رسوم، تقدم، خط زمني) ---------- */
