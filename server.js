@@ -229,6 +229,25 @@ const DECKS_DIR = path.join(__dirname, 'decks');
 const D = require('./public/shared/deck.js');
 const DECK_BLOCKS = new Set(D.BLOCK_TYPES.concat(['text', 'list']));
 const sid = (v) => (/^[A-Za-z0-9_-]{1,40}$/.test(String(v || '')) ? String(v) : '');
+const HEX = /^#[0-9a-fA-F]{6}$/, COLOR = /^(#[0-9a-fA-F]{6}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*[01]?\.?\d*\s*)?\))$/;
+const nrm = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+const idKey = (k) => /^[A-Za-z0-9_-]{1,40}$/.test(String(k));
+function cleanPhoto(p) {
+  p = p || {}; const src = str(p.src, MAX_IMAGE * 1.4), o = p.ov;
+  const th = str(p.th, 120000), out = { src: R.SAFE_IMG.test(src) && src.length <= MAX_IMAGE * 1.4 ? src : '', th: /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(th) && th.length <= 100000 ? th : '', x: nrm(p.x, 0, 100, 50), y: nrm(p.y, 0, 100, 40), scale: nrm(p.scale, 1, 4, 1), nw: Math.round(nrm(p.nw, 0, 20000, 0)), nh: Math.round(nrm(p.nh, 0, 20000, 0)), fit: p.fit === 'contain' ? 'contain' : 'cover' };
+  if (o && typeof o === 'object') out.ov = { on: o.on !== false, preset: str(o.preset, 20), color: HEX.test(o.color) ? o.color : '#005a52', dir: ['right', 'left', 'top', 'bottom', 'all'].includes(o.dir) ? o.dir : 'right', from: nrm(o.from, 0, 1, 0.9), mid: nrm(o.mid, 0, 1, 0.5), to: nrm(o.to, 0, 1, 0) };
+  return out;
+}
+function cleanExtra(e) {
+  const type = ['text', 'rect', 'photo', 'block'].includes(e && e.type) ? e.type : null; if (!type || !idKey(e.id)) return null;
+  const o = { id: String(e.id), type, x: nrm(e.x, -2000, 4000, 100), y: nrm(e.y, -2000, 4000, 100), w: nrm(e.w, 4, 4000, 200), h: nrm(e.h, 4, 4000, 100) };
+  if (e.opacity != null) o.opacity = nrm(e.opacity, 0, 1, 1);
+  if (type === 'text') Object.assign(o, { text: str(e.text, 2000), size: nrm(e.size, 8, 300, 32), weight: nrm(e.weight, 100, 900, 700), color: COLOR.test(e.color) ? e.color : '#17302c', align: ['right', 'center', 'left'].includes(e.align) ? e.align : 'right', lh: nrm(e.lh, 1, 3, 1.4), anchor: ['t', 'm', 'b'].includes(e.anchor) ? e.anchor : 'm', font: e.font === 'd' ? 'd' : 'b', field: 'extra.' + o.id, ph: str(e.ph, 80) });
+  if (type === 'rect') Object.assign(o, { fill: COLOR.test(e.fill) ? e.fill : '#c9a24b', radius: nrm(e.radius, 0, 300, 0), shape: ['rect', 'ellipse', 'arch'].includes(e.shape) ? e.shape : 'rect', shadow: !!e.shadow, border: COLOR.test(e.border) ? e.border : '', bw: nrm(e.bw, 0, 40, 2) });
+  if (type === 'photo') Object.assign(o, { photo: cleanPhoto(e.photo), radius: nrm(e.radius, 0, 300, 0), shape: ['rect', 'ellipse', 'arch'].includes(e.shape) ? e.shape : 'rect' });
+  if (type === 'block') o.blockId = idKey(e.blockId) ? String(e.blockId) : '';
+  return o;
+}
 function cleanDeck(d) {
   d = d || {}; const o = d.options || {};
   const sections = arr(d.sections, 120).filter((s) => DECK_BLOCKS.has(s && s.type)).map(cleanSection);
@@ -236,8 +255,13 @@ function cleanDeck(d) {
   const seen = new Set();
   const slides = arr(d.slides, 200).map((s) => {
     let id = sid(s && s.id) || T.uid(); if (seen.has(id)) id = T.uid(); seen.add(id);
-    const layout = D.LAYOUTS[s && s.layout] ? s.layout : 'content';
-    return { id, layout, bg: D.BGS[s && s.bg] ? s.bg : D.LAYOUTS[layout].bg, title: str(s && s.title, 300), subtitle: str(s && s.subtitle, 400), bullets: arr(s && s.bullets, 20).map((b) => str(b, 400)), notes: str(s && s.notes, 4000), hint: str(s && s.hint, 300), blockIds: Array.from(new Set((Array.isArray(s && s.blockIds) && s.blockIds.length ? s.blockIds : s && s.blockId ? [s.blockId] : []).filter((x) => ids.has(x)))).slice(0, 8) };
+    const layout = D.layoutOk(s && s.layout) ? s.layout : 'content', official = !!D.S.LAYOUTS[layout];
+    const def = official ? D.S.LAYOUTS[layout] : D.LAYOUTS[layout];
+    const bgs = official ? ['green', 'mint', 'white', 'dark'] : Object.keys(D.BGS);
+    const ov = {}; Object.keys(s && s.ov && typeof s.ov === 'object' ? s.ov : {}).filter(idKey).slice(0, 60).forEach((k) => { const v = s.ov[k] || {}; ov[k] = { x: nrm(v.x, -2000, 4000, 0), y: nrm(v.y, -2000, 4000, 0), w: nrm(v.w, 4, 4000, 100), h: nrm(v.h, 4, 4000, 100) }; });
+    const sty = {}; Object.keys(s && s.sty && typeof s.sty === 'object' ? s.sty : {}).filter(idKey).slice(0, 60).forEach((k) => { const v = s.sty[k] || {}; const r = {}; if (COLOR.test(v.color)) r.color = v.color; if (COLOR.test(v.fill)) r.fill = v.fill; if (+v.size > 0) r.size = nrm(v.size, 8, 300, 0); if (+v.weight > 0) r.weight = nrm(v.weight, 100, 900, 700); if (['right', 'center', 'left'].includes(v.align)) r.align = v.align; sty[k] = r; });
+    return { id, layout, bg: bgs.includes(s && s.bg) ? s.bg : def.bg, title: str(s && s.title, 300), subtitle: str(s && s.subtitle, 400), bullets: arr(s && s.bullets, 20).map((b) => str(b, 1500)), notes: str(s && s.notes, 4000), hint: str(s && s.hint, 300), blockIds: Array.from(new Set((Array.isArray(s && s.blockIds) && s.blockIds.length ? s.blockIds : s && s.blockId ? [s.blockId] : []).filter((x) => ids.has(x)))).slice(0, 8),
+      items: arr(s && s.items, 16).map((i) => ({ t: str(i && i.t, 300), d: str(i && i.d, 1500), v: str(i && i.v, 60) })), photos: arr(s && s.photos, 10).map(cleanPhoto), ov, sty, extra: arr(s && s.extra, 40).map(cleanExtra).filter(Boolean) };
   });
   return {
     version: 1, kind: 'deck', id: d.id || null, template: D.TEMPLATES.some((t) => t.id === d.template) ? d.template : 'blank', sample: !!d.sample,

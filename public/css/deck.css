@@ -54,7 +54,9 @@ body.deck-view { margin: 0; background: #1b2530; min-height: 100vh; }
   .noprint { display: none !important; }
   .dv-stage { display: block; padding: 0; gap: 0; }
   .dv-stage .slide { box-shadow: none; zoom: 1; break-after: page; page-break-after: always; }
-  .dv-pres { display: none !important; }
+  .dv-pres, .toasts { display: none !important; }
+  .dv-stage .slide:last-child { break-after: auto; page-break-after: auto; }
+  body.deck-view { min-height: 0; }
 }
 
 .s-block + .src-note, .s-body > .src-note { font-size: 15px; margin-top: 4px; color: #7b8996; }
@@ -65,3 +67,29 @@ body.deck-view { margin: 0; background: #1b2530; min-height: 100vh; }
 .s-bt { margin: 0 0 6px; font-size: 24px; color: var(--d); font-weight: 700; }
 .slide.bg-dark .s-bt, .slide.bg-brand .s-bt { color: #fff; }
 .s-blocks.multi .chart svg { max-height: 230px; } .s-blocks.multi .s-ph { padding: 24px; font-size: 18px; }
+
+/* ===== محرك العناصر (القوالب الرسمية) ===== */
+.slide .layer { position: absolute; inset: 0; overflow: hidden; }
+.slide .layer.extras { background: none; pointer-events: none; } .slide .layer.extras .el { pointer-events: auto; }
+.el { position: absolute; box-sizing: border-box; }
+._x{} .el-text { overflow: visible; } .el-text .tx { display: block; white-space: pre-line; overflow-wrap: anywhere; }
+.el-text.ph .tx { opacity: .5; font-weight: 500; }
+.el-photo { overflow: hidden; background: #dfeae7; } .el-photo > img { display: block; user-select: none; -webkit-user-drag: none; }
+.el-photo .ov { position: absolute; inset: 0; pointer-events: none; }
+.el-photo.empty { background: linear-gradient(135deg, var(--d), var(--a)); }
+.ph-photo { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: rgba(255,255,255,.85); font-size: 18px; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.16), transparent 60%); }
+.ph-photo b { font-size: 34px; font-weight: 400; line-height: 1; }
+.el-img img { display: block; }
+.el-block { overflow: hidden; } .el-block .s-block { zoom: 1; width: 100%; }
+.el-block.empty { border: 2px dashed #b9c9c5; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #7b8c88; font-size: 20px; text-align: center; padding: 12px; }
+.slide.official .s-ribbon { z-index: 5; }
+/* تحديد العناصر في المحرر */
+.dk-stage .el { cursor: pointer; }
+.dk-stage .el:hover { outline: 2px solid rgba(2,169,153,.55); outline-offset: -2px; }
+.dk-sel { position: absolute; border: 2px solid #1b6fd1; pointer-events: none; z-index: 20; box-sizing: border-box; }
+.dk-sel i { position: absolute; width: 12px; height: 12px; background: #fff; border: 2px solid #1b6fd1; border-radius: 3px; pointer-events: auto; }
+.dk-guide { position: absolute; background: #e5398c; z-index: 19; pointer-events: none; }
+
+.dk-stage .el-text.over { outline: 2px dashed #d9822b; outline-offset: 2px; }
+.dk-stage .el-text.over::after { content: '⚠ النص أطول من المساحة'; position: absolute; top: -22px; right: 0; font: 600 13px/1 'IBM Plex Sans Arabic', sans-serif; color: #fff; background: #d9822b; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+.dk-stage .el-text.over { overflow: visible; }

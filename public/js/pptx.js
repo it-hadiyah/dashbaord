@@ -145,8 +145,105 @@ async function blockShapes(c, blk, area) {
 }
 
 /* ---------- الشريحة ---------- */
+
+/* ---------- عناصر القوالب الرسمية: تُحوَّل القائمة الهندسية نفسها التي يرسمها المحرر إلى أشكال PPTX ---------- */
+const RBS = window.RBS;
+const parseColor = (v) => {
+  v = String(v || ''); let m = v.match(/^#([0-9a-f]{6})$/i); if (m) return { hex: m[1].toUpperCase(), a: 1 };
+  m = v.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?/);
+  if (m) return { hex: [m[1], m[2], m[3]].map((n) => (+n).toString(16).padStart(2, '0')).join('').toUpperCase(), a: m[4] != null ? +m[4] : 1 };
+  return null;
+};
+const clr = (v, k = 1) => { const p = parseColor(v); if (!p) return ''; const a = p.a * k; return `<a:srgbClr val="${p.hex}">${a < 1 ? `<a:alpha val="${Math.round(a * 100000)}"/>` : ''}</a:srgbClr>`; };
+function geomXml(e) {
+  const m = Math.max(1, Math.min(e.w, e.h));
+  if (e.shape === 'ellipse') return '<a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>';
+  if (e.shape === 'arch') return `<a:prstGeom prst="round2SameRect"><a:avLst><a:gd name="adj1" fmla="val 50000"/><a:gd name="adj2" fmla="val ${Math.min(50000, Math.round(18 / m * 100000))}"/></a:avLst></a:prstGeom>`;
+  if (e.radius > 0) return `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${Math.min(50000, Math.round(e.radius / m * 100000))}"/></a:avLst></a:prstGeom>`;
+  return '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>';
+}
+function rawShape(c, e, o) {
+  const id = ++c.id;
+  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${X(o.name || e.id)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${E(e.x)}" y="${E(e.y)}"/><a:ext cx="${E(e.w)}" cy="${E(e.h)}"/></a:xfrm>${geomXml(e)}${o.fillXml || '<a:noFill/>'}<a:ln><a:noFill/></a:ln>${o.shadow ? '<a:effectLst><a:outerShdw blurRad="190500" dist="63500" dir="5400000" algn="t" rotWithShape="0"><a:srgbClr val="003C34"><a:alpha val="14000"/></a:srgbClr></a:outerShdw></a:effectLst>' : ''}</p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="ar-SA"/></a:p></p:txBody></p:sp>`;
+}
+function textShape(c, e) {
+  const id = ++c.id, size = (e.size || 28) * 0.75, anchor = { t: 't', m: 'ctr', b: 'b' }[e.anchor] || 't', al = { right: 'r', center: 'ctr', left: 'l' }[e.align] || 'r';
+  const col = clr(e.color || '#17302c');
+  const paras = String(e.text).split('\n').map((ln) => (ln.trim() ? `<a:p><a:pPr algn="${al}" rtl="1"><a:lnSpc><a:spcPct val="${Math.round((e.lh || 1.4) * 100000)}"/></a:lnSpc><a:buNone/></a:pPr><a:r><a:rPr lang="ar-SA" sz="${Math.round(size * 100)}" b="${(e.weight || 700) >= 600 ? 1 : 0}" dirty="0"><a:solidFill>${col}</a:solidFill><a:latin typeface="Arial"/><a:cs typeface="Arial"/></a:rPr><a:t>${X(c.map(ln))}</a:t></a:r></a:p>` : `<a:p><a:endParaRPr lang="ar-SA" sz="${Math.round(size * 100)}"/></a:p>`)).join('');
+  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${X(e.id)}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${E(e.x)}" y="${E(e.y)}"/><a:ext cx="${E(e.w)}" cy="${E(e.h)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr><p:txBody><a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" anchor="${anchor}" rtlCol="1"><a:noAutofit/></a:bodyPr><a:lstStyle/>${paras}</p:txBody></p:sp>`;
+}
+function picXml(c, rid, e, o) {
+  const id = ++c.id, cr = o.crop || { l: 0, t: 0, r: 0, b: 0 }, fr = (v) => Math.max(0, Math.round(v * 100000));
+  return `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${X(o.name || e.id)}" descr="${X(o.name || e.id)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${rid}">${o.alpha != null && o.alpha < 1 ? `<a:alphaModFix amt="${Math.round(o.alpha * 100000)}"/>` : ''}</a:blip><a:srcRect l="${fr(cr.l)}" t="${fr(cr.t)}" r="${fr(cr.r)}" b="${fr(cr.b)}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="${E(o.x != null ? o.x : e.x)}" y="${E(o.y != null ? o.y : e.y)}"/><a:ext cx="${E(o.w != null ? o.w : e.w)}" cy="${E(o.h != null ? o.h : e.h)}"/></a:xfrm>${o.geomE ? geomXml(o.geomE) : '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>'}</p:spPr></p:pic>`;
+}
+function overlayFill(ov) {
+  const c = ov.color || '#005a52', st = (pos, a) => `<a:gs pos="${pos}"><a:srgbClr val="${hex(c)}"><a:alpha val="${Math.round(Math.max(0, Math.min(1, a)) * 100000)}"/></a:srgbClr></a:gs>`;
+  if (ov.dir === 'all') return `<a:solidFill><a:srgbClr val="${hex(c)}"><a:alpha val="${Math.round(ov.from * 100000)}"/></a:srgbClr></a:solidFill>`;
+  const rev = ov.dir === 'right' || ov.dir === 'bottom', ang = ov.dir === 'top' || ov.dir === 'bottom' ? 5400000 : 0;
+  const stops = rev ? [st(0, ov.to), st(50000, ov.mid), st(100000, ov.from)] : [st(0, ov.from), st(50000, ov.mid), st(100000, ov.to)];
+  return `<a:gradFill rotWithShape="1"><a:gsLst>${stops.join('')}</a:gsLst><a:lin ang="${ang}" scaled="0"/></a:gradFill>`;
+}
+const imgCache = new Map();
+async function srcBytes(src) {
+  if (imgCache.has(src)) return imgCache.get(src);
+  const img = await loadImg(src); let bytes, ext = 'png';
+  const m = src.match(/^data:image\/(png|jpe?g);base64,(.+)$/);
+  if (m) { bytes = Uint8Array.from(atob(m[2]), (ch) => ch.charCodeAt(0)); ext = m[1] === 'png' ? 'png' : 'jpeg'; } else bytes = await toPng(img, img.naturalWidth || 800, img.naturalHeight || 600, null);
+  const r = { bytes, ext, w: img.naturalWidth || 800, h: img.naturalHeight || 600 }; imgCache.set(src, r); return r;
+}
+const BG_PPTX = (c, kind) => ({
+  green: `<a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:srgbClr val="${c.d}"/></a:gs><a:gs pos="100000"><a:srgbClr val="${c.a}"/></a:gs></a:gsLst><a:lin ang="2700000" scaled="0"/></a:gradFill>`,
+  dark: `<a:solidFill><a:srgbClr val="${c.d}"/></a:solidFill>`,
+  mint: '<a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:srgbClr val="F6FAF9"/></a:gs><a:gs pos="100000"><a:srgbClr val="E4F1EE"/></a:gs></a:gsLst><a:lin ang="4000000" scaled="0"/></a:gradFill>',
+  white: '<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>',
+}[kind] || '<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>');
+
+async function elementShapes(c, deck, s, cfg, els) {
+  const out = [];
+  for (const e of els) {
+    if (e.type === 'rect') {
+      const p = parseColor(e.fill); if (!p) continue;
+      out.push(rawShape(c, e, { fillXml: `<a:solidFill>${clr(e.fill, e.opacity != null ? e.opacity : 1)}</a:solidFill>`, shadow: e.shadow }));
+    } else if (e.type === 'text') {
+      if (String(e.text || '').trim()) out.push(textShape(c, e));
+    } else if (e.type === 'img') {
+      const url = cfg[e.kind]; if (!url) continue;
+      try {
+        const im = await fetchPng(url), cover = /^pattern/.test(e.kind), rid = addMedia(c, im.bytes, 'png'), op = e.opacity != null ? e.opacity : 1;
+        if (cover) {
+          const k = Math.max(e.w / im.w, e.h / im.h), vw = e.w / (im.w * k), vh = e.h / (im.h * k);
+          out.push(picXml(c, rid, e, { crop: { l: (1 - vw) / 2, r: (1 - vw) / 2, t: (1 - vh) / 2, b: (1 - vh) / 2 }, alpha: op }));
+        } else { const f = fit(im.w, im.h, e.w, e.h); out.push(picXml(c, rid, e, { x: e.x + (e.w - f.w) / 2, y: e.y + (e.h - f.h) / 2, w: f.w, h: f.h, alpha: op })); }
+      } catch (x) { /* شعار غير متاح */ }
+    } else if (e.type === 'photo') {
+      const p = e.photo;
+      if (!p.src) { if (!e.tile) out.push(rawShape(c, e, { fillXml: `<a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:srgbClr val="${c.d}"/></a:gs><a:gs pos="100000"><a:srgbClr val="${c.a}"/></a:gs></a:gsLst><a:lin ang="2700000" scaled="0"/></a:gradFill>` })); }
+      else {
+        try {
+          const im = await srcBytes(p.src), pp = Object.assign({}, p, { nw: p.nw || im.w, nh: p.nh || im.h }), g = RBS.photoGeom(pp, e.w, e.h), rid = addMedia(c, im.bytes, im.ext);
+          if (pp.fit === 'contain') out.push(picXml(c, rid, e, { x: e.x + g.l, y: e.y + g.t, w: g.w, h: g.h, geomE: e }));
+          else out.push(picXml(c, rid, e, { crop: { l: -g.l / g.w, t: -g.t / g.h, r: 1 - (-g.l + e.w) / g.w, b: 1 - (-g.t + e.h) / g.h }, geomE: e }));
+        } catch (x) { /* صورة تالفة */ }
+      }
+      if (p.ov && p.ov.on !== false && !(e.tile && !p.src)) out.push(rawShape(c, e, { fillXml: overlayFill(p.ov), name: e.id + '-overlay' }));
+    } else if (e.type === 'block') {
+      const id = e.blockId || (RBD.idsOf(s)[e.bi]); const b = id && (deck.sections || []).find((x) => x.id === id); if (!b) continue;
+      const bb = RBR.applyRef(b, getIndicatorMap()); if (RBR.isEmptySection(bb)) continue;
+      out.push(...(await blockShapes(c, bb, { x: e.x, y: e.y, w: e.w, h: e.h })));
+    }
+  }
+  return out;
+}
+const ctxFor = (deck, cfg) => ({ config: cfg, preview: false, indicators: getIndicatorMap() });
+
 async function slideXml(c, deck, s, i, total, logos, geo) {
-  const { sw, sh } = geo, L = s.layout, bg = s.bg || RBD.LAYOUTS[L].bg, dark = bg === 'brand' || bg === 'dark';
+  const { sw, sh } = geo;
+  if (RBS.isOfficial(s.layout)) {
+    const m = RBS.build(deck, s, RBD.sctx(deck, ctxFor(deck, geo.cfg), RBR.makeRenderer({ options: {}, palette: deck.palette, template: 'blank', sections: [] }, {})));
+    const shapes = await elementShapes(c, deck, s, geo.cfg, m.els);
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld ${NS}><p:cSld><p:bg><p:bgPr>${BG_PPTX(c, m.bg)}<a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>${shapes.join('')}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`;
+  }
+  const L = s.layout, bg = s.bg || RBD.LAYOUTS[L].bg, dark = bg === 'brand' || bg === 'dark';
   const shapes = [];
   const fg = dark ? 'FFFFFF' : c.d;
   const logo = dark ? logos.light : logos.dark;
@@ -192,6 +289,7 @@ async function slideXml(c, deck, s, i, total, logos, geo) {
     }
     shapes.push(box(c, { x: 60, y: sh - 40, w: sw - 120, h: 28, text: P(c, `${i + 1} / ${total}`, { sz: 12, color: '7B8996', algn: 'l' }), name: 'رقم الشريحة' }));
   }
+  if ((s.extra || []).length) shapes.push(...(await elementShapes(c, deck, s, geo.cfg, RBS.extras(s))));
   const bgXml = bg === 'brand' ? `<a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:srgbClr val="${c.d}"/></a:gs><a:gs pos="100000"><a:srgbClr val="${c.a}"/></a:gs></a:gsLst><a:lin ang="2700000" scaled="0"/></a:gradFill>`
     : `<a:solidFill><a:srgbClr val="${bg === 'dark' ? c.d : bg === 'tint' ? c.s : 'FFFFFF'}"/></a:solidFill>`;
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld ${NS}><p:cSld><p:bg><p:bgPr>${bgXml}<a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>${shapes.join('')}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`;

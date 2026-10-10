@@ -43,3 +43,9 @@
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .4); --shadow-2: 0 4px 12px rgba(0, 0, 0, .45); --shadow-3: 0 12px 32px rgba(0, 0, 0, .55);
 }
 @media (prefers-reduced-motion: reduce) { :root { --t-1: 0ms; --t-2: 0ms; } * { scroll-behavior: auto !important; } }
+
+/* رموز HADIYAH Studio المشتركة بين التقارير والعروض: الأخضر المؤسسي والذهبي وسلالم الزوايا والمسافات والظل */
+:root {
+  --st-green: #007f73; --st-green-d: #005a52; --st-gold: #c9a24b; --st-mint: #eef6f4;
+  --st-r: 14px; --st-r-sm: 8px; --st-gap: 12px; --st-shadow: 0 6px 20px rgba(0, 60, 52, .12);
+}

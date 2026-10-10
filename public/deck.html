@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/css/report.css">
 <link rel="stylesheet" href="/css/components.css">
 <link rel="stylesheet" href="/css/deck.css">
+<link rel="stylesheet" href="/css/studio.css">
 <link rel="icon" href="/brand/logo-icon.png" type="image/png">
 <script>try{var t=localStorage.getItem('rb-theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
 <script src="/js/guard.js"></script>
@@ -23,7 +24,7 @@ body.dk-page{display:flex;flex-direction:column;height:100vh;overflow:hidden;bac
 .dk-th .in{pointer-events:none;transform-origin:top right}
 .dk-th .n{top:auto;bottom:4px;inset-inline-start:auto;inset-inline-end:6px}
 .dk-canvas{overflow:auto;padding:18px;display:flex;flex-direction:column;align-items:center;gap:14px}
-.dk-stage{background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.25);flex:none;position:relative;overflow:hidden}
+.dk-stage{background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.25);flex:none;position:relative}
 .dk-stage .slide{transform-origin:top right;position:absolute;top:0;right:0}
 .dk-props{overflow:auto;border-inline-start:1px solid var(--border,#dde3e8);padding:14px;background:var(--surface,#fff)}
 .dk-props h3{margin:14px 0 6px;font-size:1rem}
@@ -48,7 +49,7 @@ body.dk-page{display:flex;flex-direction:column;height:100vh;overflow:hidden;bac
 </header>
 <div class="dk-wrap">
   <aside class="dk-thumbs" id="dk-thumbs" aria-label="الشرائح"></aside>
-  <main class="dk-canvas" id="dk-canvas"><div class="dk-stage" id="dk-stage"></div><div class="muted" id="dk-hint">انقر الشريحة في القائمة لتحريرها. اسحبها لإعادة الترتيب.</div></main>
+  <main class="dk-canvas" id="dk-canvas"><div class="dk-toolbar" id="dk-toolbar" role="toolbar" aria-label="أدوات التصميم"></div><div class="dk-stage" id="dk-stage"></div><div class="muted" id="dk-hint">انقر عنصراً لتحديده واسحبه. انقر مرتين على النص لتحريره. اسحب الصورة لتحريكها داخل الإطار وبعجلة الفأرة لتكبيرها.</div></main>
   <aside class="dk-props" id="dk-props" aria-label="خصائص الشريحة"></aside>
 </div>
 <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -56,6 +57,7 @@ body.dk-page{display:flex;flex-direction:column;height:100vh;overflow:hidden;bac
 <script src="/shared/templates.js"></script>
 <script src="/shared/calc.js"></script>
 <script src="/shared/render.js"></script>
+<script src="/shared/studio.js"></script>
 <script src="/shared/deck.js"></script>
 <script type="module" src="/js/deck-editor.js"></script>
 </body>

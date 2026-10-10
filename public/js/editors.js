@@ -197,7 +197,7 @@ function timelineEditor(s) {
       { key: 'status', label: 'الحالة', type: 'select', w: '.9fr', options: [['done', 'مكتملة'], ['active', 'جارية'], ['todo', 'قادمة']] }] });
 }
 
-export async function fileToDataUrl(file, maxW = 1600) {
+export async function fileToDataUrl(file, maxW = 1600, quality = 0.86) {
   if (!/^image\/(png|jpe?g|webp|gif|svg\+xml)$/.test(file.type)) throw new Error('الصيغة غير مدعومة. استخدم PNG أو JPG أو WEBP أو SVG.');
   const raw = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
   if (file.type === 'image/svg+xml' || file.type === 'image/gif') { if (raw.length > 2.4e6) throw new Error('حجم الصورة كبير (الحد 1.8MB).'); return raw; }
@@ -205,7 +205,7 @@ export async function fileToDataUrl(file, maxW = 1600) {
   const k = Math.min(1, maxW / img.width), c = document.createElement('canvas');
   c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  const out = file.type === 'image/png' ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.86);
+  const out = file.type === 'image/png' ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', quality);
   if (out.length > 3.9e6) throw new Error('حجم الصورة كبير. جرّب صورة أصغر.');
   return out;
 }

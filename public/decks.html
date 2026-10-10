@@ -8,10 +8,10 @@
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/report.css">
 <link rel="stylesheet" href="/css/deck.css">
+<link rel="stylesheet" href="/css/studio.css">
 <link rel="icon" href="/brand/logo-icon.png" type="image/png">
 <script>try{var t=localStorage.getItem('rb-theme');if(t)document.documentElement.setAttribute('data-theme',t);else if(matchMedia('(prefers-color-scheme: dark)').matches)document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
 <script src="/js/guard.js"></script>
-<style>.dthumb{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;background:#eef2f5;border-bottom:1px solid var(--border)}.dthumb.r43{aspect-ratio:4/3}.dthumb .slide{position:absolute;top:0;right:0;transform-origin:top right;pointer-events:none}.dtabs{display:flex;gap:6px;padding:8px 14px 0}.dtabs button{border:0;background:var(--surface-2,#eef2f5);border-radius:999px;padding:2px 12px;font:inherit;font-size:12px;cursor:pointer}.dtabs button.on{background:var(--brand,#007f73);color:#fff}.tcard.dk{display:flex;flex-direction:column;height:100%}.dinfo{padding:10px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1}.dinfo p{min-height:3.2em}.dinfo h3{margin:0}.dinfo p{margin:0;color:var(--muted)}.dact{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:auto;padding-top:10px}.dact .btn{width:100%;justify-content:center;white-space:nowrap}.tcard.dk{padding:0;cursor:default}.tcard.dk_old{padding:16px;text-align:right;gap:6px;cursor:pointer;font:inherit;color:inherit}.tcard.dk b{font-size:1.05rem}</style>
 </head>
 <body>
 <header class="top">
@@ -26,11 +26,8 @@
 
   <h2 style="margin-top:32px" id="new">ابدأ عرضاً جديداً</h2>
   <p class="muted">اختر قالباً، وسنرشدك لتعبئة كل شريحة بمعاينة مباشرة. «ببيانات تجريبية» يملأ القالب بأمثلة توضيحية.</p>
-  <div class="two" style="gap:16px;margin:8px 0 14px;align-items:end">
-    <label class="fld"><span>مقاس الشرائح</span><select id="ratio"><option value="16:9">عريض 16:9</option><option value="4:3">قياسي 4:3</option></select></label>
-    <label class="fld"><span>بحث في القوالب</span><input id="tq" type="search" placeholder="ابحث..."></label>
-  </div>
-  <div id="tpls" class="tgrid"></div>
+  <div style="margin:8px 0 14px;max-width:260px"><label class="fld"><span>مقاس الشرائح</span><select id="ratio"><option value="16:9">عريض 16:9</option><option value="4:3">قياسي 4:3</option></select></label></div>
+  <div id="tpls"></div>
 
   <h2 style="margin-top:32px" id="convert">تحويل تقرير إلى عرض</h2>
   <div class="two" style="gap:16px;align-items:end">
@@ -44,10 +41,12 @@
 <script src="/shared/templates.js"></script>
 <script src="/shared/calc.js"></script>
 <script src="/shared/render.js"></script>
+<script src="/shared/studio.js"></script>
 <script src="/shared/deck.js"></script>
 <script type="module">
 import { el, btn, toast, confirmDialog } from '/js/ui.js';
 import { mountUserChip } from '/js/userchip.js';
+import { buildTemplateGallery } from '/js/template-gallery.js';
 const D = window.RBD;
 let me;
 const fmt = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('ar-SA-u-ca-gregory', { year: 'numeric', month: 'short', day: 'numeric' }); };
@@ -61,27 +60,25 @@ async function create(t, sample) {
     const o = await post('/api/decks', deck); location.href = '/deck.html?id=' + o.id;
   } catch (e) { toast(e.message, { tone: 'err' }); }
 }
-function thumb(t) {
-  const ratio = document.getElementById('ratio').value, rt = D.RATIOS[ratio];
-  const sample = D.createDeck(t.id, { sample: true, ratio }); const n = sample.slides.length;
-  const box = el('div', { class: 'dthumb' + (ratio === '4:3' ? ' r43' : ''), style: D.rootStyle(sample), 'aria-hidden': 'true' });
-  let idx = 0;
-  const paint = () => { box.innerHTML = D.renderSlide(sample, sample.slides[idx], { config: cfg, index: idx, total: n }); fit(); };
-  const fit = () => { const s = box.firstElementChild; if (s) s.style.transform = `scale(${box.clientWidth / rt.w})`; };
-  new ResizeObserver(fit).observe(box);
-  const tabs = el('div', { class: 'dtabs', role: 'group', 'aria-label': 'معاينة القالب' }, [['الغلاف', 0], ['المحتوى', Math.min(1, n - 1)], ['شريحة أخرى', Math.min(2, n - 1)]].map(([name, i], k) => el('button', { type: 'button', class: k === 0 ? 'on' : '', onclick: (e) => { idx = i; tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === e.currentTarget)); paint(); } }, name)));
-  paint(); return [box, tabs];
+// المعاينة تُرسم بالمُصيِّر نفسه الذي يستعمله المحرر ووضع العرض، وعلى البيانات نفسها التي ينشئها «استخدم القالب»
+function mountDeckThumb(box, item, ratio) {
+  const rt = D.RATIOS[ratio], deck = D.createDeck(item.id, { sample: false, ratio }), n = deck.slides.length;
+  box.setAttribute('style', `aspect-ratio:${rt.w} / ${rt.h};${D.rootStyle(deck)}`);
+  const idx = { 0: 0, 1: Math.min(2, n - 1), 2: Math.min(7, n - 1) };
+  const paint = (k) => { const i = idx[k] != null ? idx[k] : 0; box.innerHTML = D.renderSlide(deck, deck.slides[i], { config: cfg, index: i, total: n, preview: true }); fit(); };
+  const fit = () => { const s = box.firstElementChild; if (s) { s.style.position = 'absolute'; s.style.top = '0'; s.style.right = '0'; s.style.transformOrigin = 'top right'; s.style.pointerEvents = 'none'; s.style.transform = `scale(${box.clientWidth / rt.w})`; } };
+  new ResizeObserver(fit).observe(box); paint(0); return paint;
 }
 function drawTemplates() {
-  const q = document.getElementById('tq').value.trim(), tp = document.getElementById('tpls'); tp.replaceChildren();
-  D.TEMPLATES.filter((t) => !q || (t.name + ' ' + t.desc).includes(q)).forEach((t) => {
-    const [box, tabs] = thumb(t);
-    tp.append(el('article', { class: 'tcard dk' }, box, tabs, el('div', { class: 'dinfo' }, el('h3', {}, t.name), el('p', {}, t.desc), el('small', { class: 'muted' }, t.slides.length + ' شريحة'),
-      el('div', { class: 'dact' }, btn('استخدم القالب', { cls: 'primary', onclick: () => create(t, false) }), btn('ببيانات تجريبية', { cls: 'ghost', title: 'يملأ القالب بأمثلة توضيحية', onclick: () => create(t, true) })))));
+  const ratio = document.getElementById('ratio').value, rt = D.RATIOS[ratio];
+  buildTemplateGallery(document.getElementById('tpls'), {
+    items: D.TEMPLATES.map((t) => ({ id: t.id, name: t.name, desc: t.desc, category: t.category || 'عام', palette: t.palette, meta: (t.layouts ? t.layouts.length : t.slides.length) + ' شريحة', raw: t })),
+    categories: ['الكل', 'رسمي هدية', 'إدارية', 'مالية', 'مشاريع', 'عام'], user: me.username, favPrefix: 'rb-fav-deck:',
+    thumb: { aspect: rt.w + ' / ' + rt.h, variants: [['0', 'الغلاف'], ['1', 'المحتوى'], ['2', 'شريحة أخرى']], mount: (box, item) => mountDeckThumb(box, item, ratio) },
+    onUse: (item, sample) => create(item.raw, sample),
   });
-  if (!tp.children.length) tp.append(el('div', { class: 'empty' }, el('b', {}, 'لا توجد قوالب مطابقة')));
 }
-document.getElementById('tq').oninput = drawTemplates; document.getElementById('ratio').onchange = drawTemplates;
+document.getElementById('ratio').onchange = drawTemplates;
 
 document.getElementById('conv').onclick = async () => {
   const id = document.getElementById('rep').value; if (!id) { toast('اختر تقريراً أولاً', { tone: 'err' }); return; }
