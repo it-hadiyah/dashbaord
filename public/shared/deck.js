@@ -21,7 +21,7 @@
 
   function newSlide(layout, o) {
     o = o || {};
-    return { id: uid(), layout: LAYOUTS[layout] ? layout : 'content', bg: o.bg || LAYOUTS[layout || 'content'].bg, title: o.title || '', subtitle: o.subtitle || '', bullets: (o.bullets || []).slice(), notes: o.notes || '', blockId: o.blockId || '' };
+    return { id: uid(), layout: LAYOUTS[layout] ? layout : 'content', bg: o.bg || LAYOUTS[layout || 'content'].bg, title: o.title || '', subtitle: o.subtitle || '', bullets: (o.bullets || []).slice(), notes: o.notes || '', blockId: o.blockId || '', hint: o.hint || '' };
   }
 
   function blockOf(deck, slide) { return slide.blockId ? (deck.sections || []).find((s) => s.id === slide.blockId) || null : null; }
@@ -55,7 +55,8 @@
       const empty = block && R.isEmptySection(block);
       let main = '';
       if (block && !empty) main = `<div class="s-wrap"><div class="s-block b-${esc(block.type)}">${r.body(block)}</div>${r.sourceNote(block)}</div>`;
-      else if (block && empty && ctx.preview) main = '<div class="s-block s-ph">أضف بيانات لهذا المحتوى من لوحة التحرير</div>';
+      else if (block && empty && ctx.preview) main = `<div class="s-block s-ph">${E(slide.hint || 'أضف بيانات لهذا المحتوى من لوحة التحرير')}</div>`;
+      else if (!block && !bl.length && ctx.preview) main = `<div class="s-block s-ph">${E(slide.hint || 'اكتب نقاط هذه الشريحة من لوحة التحرير')}</div>`;
       const list = bl.length ? `<ul class="s-list">${bl.map((b) => `<li>${E(b)}</li>`).join('')}</ul>` : '';
       const two = main && list ? ' two' : '';
       inner = `<div class="s-content">${logo}<h2 class="s-title">${E(slide.title)}</h2>${slide.subtitle ? `<p class="s-sub">${E(slide.subtitle)}</p>` : ''}<div class="s-body${two}">${list}${main}</div></div>`;
@@ -103,10 +104,13 @@ ${css}
 
   /* ---------- بناء عرض من قالب ---------- */
   const mk = (type, title, content) => ({ type, title: title || '', content });
+  const HINTS = { cover: 'اكتب عنوان العرض والعنوان الفرعي (واسم المقدّم والتاريخ من «إعدادات العرض كله»).', section: 'اكتب عنوان هذا القسم من العرض.', closing: 'شريحة الختام: يمكنك تغيير عبارة الشكر.',
+    kpi: 'اختر «مؤشرات رئيسية» وأدخل أهم 3 إلى 4 أرقام مع نسبة تغيّرها.', chart: 'أدخل التسميات والقيم لتظهر في الرسم، أو اربطه بمؤشر مركزي.', table: 'أدخل عناوين الأعمدة وصفوف الجدول، أو استوردها من Excel.', compare: 'أدخل قيمة كل بند في الفترتين وستظهر نسبة الارتفاع أو الانخفاض تلقائياً.', calc: 'أدخل الأرقام وسيُحسب المتبقي والنسبة تلقائياً.', progress: 'أدخل نسبة إنجاز كل بند.', timeline: 'اذكر المراحل وتواريخها وحالتها.', gantt: 'أدخل المهام بتواريخ البداية والنهاية.', callout: 'اكتب الملاحظة المهمة.', image: 'أضف صورة.', bullets: 'اكتب النقاط الرئيسية لهذه الشريحة، كل نقطة في سطر.' };
+  const autoHint = (d) => d.hint || (d.layout === 'cover' || d.layout === 'section' || d.layout === 'closing' ? HINTS[d.layout] : d.block ? HINTS[d.block.type] : HINTS.bullets);
   function attach(deck, defs) {
     deck.sections = []; deck.slides = [];
     defs.forEach((d) => {
-      const s = newSlide(d.layout || 'content', d);
+      const s = newSlide(d.layout || 'content', d); s.hint = autoHint(d);
       if (d.block) { const b = T.makeSection(d.block.type, d.block.title || '', {}); b.content = JSON.parse(JSON.stringify(d.block.content)); b.hint = ''; deck.sections.push(b); s.blockId = b.id; }
       deck.slides.push(s);
     });

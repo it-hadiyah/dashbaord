@@ -228,7 +228,7 @@ function cleanDeck(d) {
   const slides = arr(d.slides, 200).map((s) => {
     let id = sid(s && s.id) || T.uid(); if (seen.has(id)) id = T.uid(); seen.add(id);
     const layout = D.LAYOUTS[s && s.layout] ? s.layout : 'content';
-    return { id, layout, bg: D.BGS[s && s.bg] ? s.bg : D.LAYOUTS[layout].bg, title: str(s && s.title, 300), subtitle: str(s && s.subtitle, 400), bullets: arr(s && s.bullets, 20).map((b) => str(b, 400)), notes: str(s && s.notes, 4000), blockId: ids.has(s && s.blockId) ? s.blockId : '' };
+    return { id, layout, bg: D.BGS[s && s.bg] ? s.bg : D.LAYOUTS[layout].bg, title: str(s && s.title, 300), subtitle: str(s && s.subtitle, 400), bullets: arr(s && s.bullets, 20).map((b) => str(b, 400)), notes: str(s && s.notes, 4000), hint: str(s && s.hint, 300), blockId: ids.has(s && s.blockId) ? s.blockId : '' };
   });
   return {
     version: 1, kind: 'deck', id: d.id || null, template: D.TEMPLATES.some((t) => t.id === d.template) ? d.template : 'blank', sample: !!d.sample,

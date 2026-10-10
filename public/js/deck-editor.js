@@ -58,6 +58,7 @@ function renderProps() {
   const content = s.layout === 'content';
   const parts = [
     el('h3', {}, 'الشريحة ' + (cur + 1) + ' من ' + d.slides.length),
+    s.hint ? el('div', { class: 'hint', role: 'note' }, el('span', {}, s.hint)) : null,
     field('التخطيط', segmented(Object.entries(D.LAYOUTS).map(([k, v]) => [k, v.name]), s.layout, (v) => { edit((r) => { const x = r.slides.find((q) => q.id === s.id); x.layout = v; x.bg = D.LAYOUTS[v].bg; }, null, 'structure'); renderProps(); }, 'تخطيط الشريحة')),
     field('الخلفية', el('select', { 'aria-label': 'الخلفية', onchange: (e) => slideField(s.id, (x) => { x.bg = e.target.value; }, 'bg') }, Object.entries(D.BGS).map(([k, v]) => el('option', { value: k, selected: s.bg === k }, v)))),
     field(s.layout === 'cover' ? 'عنوان العرض' : 'عنوان الشريحة', textInput(s.title, (v) => slideField(s.id, (x) => { x.title = v; }, 't'), { ph: 'اكتب العنوان' })),
@@ -69,6 +70,7 @@ function renderProps() {
     if (blk) parts.push(el('div', { id: 'dk-block' }, sectionEditor(blk)));
   }
   parts.push(field('ملاحظات المقدّم (لا تظهر في الشريحة)', el('textarea', { rows: 3, dir: 'auto', oninput: (e) => slideField(s.id, (x) => { x.notes = e.target.value; }, 'nt') }, s.notes || '')));
+  parts.push(el('div', { class: 'btns' }, btn('→ الشريحة التالية', { cls: 'primary', onclick: () => select(cur + 1), disabled: cur >= d.slides.length - 1 })));
   parts.push(el('details', { class: 'dk-meta' }, el('summary', {}, 'إعدادات العرض كله'),
     field('عنوان العرض', textInput(d.title, (v) => edit((r) => { r.title = v; }, 'dt', 'content'))),
     field('عنوان فرعي', textInput(d.subtitle, (v) => edit((r) => { r.subtitle = v; }, 'ds', 'content'))),
@@ -132,6 +134,7 @@ function moveSlide(from, to) {
 
 /* ---------- الحفظ ---------- */
 function status(t) { $('dk-status').textContent = t; }
+let lastSaved = '';
 async function save(quiet) {
   const d = deck();
   if (!String(d.title || '').trim()) { if (!quiet) toast('أدخل عنوان العرض من «إعدادات العرض كله»', { tone: 'err' }); return false; }
@@ -174,11 +177,14 @@ function exportMenu(e) {
 }
 
 /* ---------- التشغيل ---------- */
-function full() { cur = Math.min(cur, deck().slides.length - 1); renderThumbs(); renderStage(); renderProps(); $('dk-name').textContent = deck().title || 'عرض بلا عنوان'; }
+function filled(d, s) { const b = D.blockOf(d, s); return s.layout !== 'content' ? !!String(s.title || '').trim() : (s.bullets || []).some((x) => x.trim()) || (b && !window.RBR.isEmptySection(b)); }
+function progress() { const d = deck(), n = d.slides.filter((s) => filled(d, s)).length; $('dk-prog').textContent = 'اكتمل ' + n + ' من ' + d.slides.length + ' شريحة'; }
+function full() { progress(); cur = Math.min(cur, deck().slides.length - 1); renderThumbs(); renderStage(); renderProps(); $('dk-name').textContent = deck().title || 'عرض بلا عنوان'; }
 on((kind) => {
   $('b-undo').disabled = !canUndo(); $('b-redo').disabled = !canRedo();
   if (kind === 'all' || kind === 'select') { full(); }
   else { renderStage(); if (kind === 'structure') renderThumbs(); else { const t = $('dk-thumbs').querySelectorAll('.dk-th')[cur]; if (t) { const k = 180 / (D.RATIOS[deck().ratio] || D.RATIOS['16:9']).w, inner = t.querySelector('.in'); inner.innerHTML = slideHtml(cur); const sl = inner.firstElementChild; sl.style.transform = `scale(${k})`; sl.style.position = 'absolute'; sl.style.top = '0'; sl.style.right = '0'; } } $('dk-name').textContent = deck().title || 'عرض بلا عنوان'; }
+  progress();
   if (kind !== 'status' && store.dirty) scheduleSave();
 });
 
