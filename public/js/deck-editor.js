@@ -1,5 +1,5 @@
 // محرر العروض التقديمية: شرائح مصغّرة + لوحة معاينة + خصائص الشريحة، مع تراجع/إعادة وحفظ تلقائي
-import { el, btn, toast, confirmDialog, modal } from './ui.js';
+import { el, btn, toast, confirmDialog, modal, popupMenu } from './ui.js';
 import { store, load, edit, on, undo, redo, canUndo, canRedo } from './store.js';
 import { sectionEditor, field, textInput, segmented, fileToDataUrl } from './editors.js';
 import { initCanvas, getPath, setPath } from './deck-canvas.js';
@@ -9,8 +9,6 @@ import { shareDialog } from './workflow-ui.js';
 
 const D = window.RBD, T = window.RBT, S = window.RBS;
 const $ = (id) => document.getElementById(id);
-// يبقي القوائم المنبثقة داخل نافذة العرض (تُفتح للأعلى عند ضيق المساحة أسفلها)
-function fitMenu(m) { requestAnimationFrame(() => { const r = m.getBoundingClientRect(); if (r.bottom > innerHeight - 8) m.style.top = Math.max(8, innerHeight - r.height - 8) + 'px'; m.style.maxHeight = (innerHeight - 16) + 'px'; m.style.overflow = 'auto'; }); }
 let cfg = {}, cur = 0, serverId = null, saveTimer = null, saving = false, selEid = null, zoomF = 1, curScale = 1, canvas = null;
 const LS = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } return null; };
 
@@ -106,7 +104,7 @@ function addExtra(type, blockType) {
   edit((r) => {
     const s = r.slides[cur]; const opt = {};
     if (type === 'block') { const b = T.makeSection(blockType, '', {}); b.hint = ''; r.sections.push(b); opt.blockId = b.id; }
-    const e = S.newExtra(type === 'ellipse' ? 'ellipse' : type, rt.w, rt.h, opt); nid = e.id; s.extra = (s.extra || []).concat([e]);
+    const e = S.newExtra(type, rt.w, rt.h, opt); nid = e.id; s.extra = (s.extra || []).concat([e]);
   }, null, 'structure');
   select(cur); canvas.select(nid); selEid = nid; renderProps();
   if (type === 'photo') pickPhoto(nid);
@@ -268,14 +266,7 @@ function removeBlock(slideId, bid) {
 function moveBlock(slideId, from, to) {
   edit((r) => { const s = r.slides.find((x) => x.id === slideId); s.blockIds.splice(to, 0, s.blockIds.splice(from, 1)[0]); }, null, 'structure'); renderProps();
 }
-function addSectionMenu(e) {
-  const root = $('menu-root'); if (root.firstChild) { root.replaceChildren(); return; }
-  const r = e.currentTarget.getBoundingClientRect();
-  const menu = el('div', { class: 'menu', role: 'menu', style: `top:${r.bottom + 6}px;left:${Math.max(8, r.left)}px;max-height:60vh;overflow:auto` }, ...Object.keys(BLOCK_NAMES).map((t) => el('button', { type: 'button', role: 'menuitem', onclick: () => { root.replaceChildren(); addBlock(t); } }, el('span', {}, BLOCK_NAMES[t]))));
-  root.replaceChildren(menu); fitMenu(menu);
-  const close = (ev) => { if (!menu.contains(ev.target)) { root.replaceChildren(); document.removeEventListener('click', close, true); } };
-  setTimeout(() => document.addEventListener('click', close, true), 0);
-}
+function addSectionMenu(e) { popupMenu(e.currentTarget, Object.keys(BLOCK_NAMES).map((t) => ({ label: BLOCK_NAMES[t], run: () => addBlock(t) }))); }
 let openBlock = null;
 
 function setBlock(type) {
@@ -299,18 +290,9 @@ function addSlide(layout) {
   select(cur + 1);
 }
 function addMenu(e) {
-  const root = $('menu-root'); if (root.firstChild) { root.replaceChildren(); return; }
-  const r = e.currentTarget.getBoundingClientRect();
-  const item = (label, fn) => el('button', { type: 'button', role: 'menuitem', onclick: () => { root.replaceChildren(); fn(); } }, el('span', {}, label));
-  const m = el('div', { class: 'menu', role: 'menu', style: `top:${r.bottom + 6}px;right:${Math.max(8, innerWidth - r.right)}px;max-height:70vh;overflow:auto` },
-    el('div', { class: 'menu-h', style: 'padding:4px 12px;font-size:12px;color:var(--muted)' }, 'شرائح هدية الرسمية'),
-    ...Object.entries(S.LAYOUTS).map(([k, v]) => item(v.name, () => addSlide(k))),
-    el('hr'), el('div', { class: 'menu-h', style: 'padding:4px 12px;font-size:12px;color:var(--muted)' }, 'شرائح عامة'),
-    ...Object.entries(D.LAYOUTS).map(([k, v]) => item('شريحة ' + v.name, () => addSlide(k))),
-    ...['kpi', 'chart', 'table', 'compare'].map((t) => item('شريحة: ' + BLOCK_NAMES[t], () => { addSlide('content'); addBlock(t); })));
-  root.replaceChildren(m); fitMenu(m);
-  const close = (ev) => { if (!m.contains(ev.target)) { root.replaceChildren(); document.removeEventListener('click', close, true); } };
-  setTimeout(() => document.addEventListener('click', close, true), 0);
+  popupMenu(e.currentTarget, [{ heading: 'شرائح هدية الرسمية' }].concat(Object.entries(S.LAYOUTS).map(([k, v]) => ({ label: v.name, run: () => addSlide(k) })),
+    ['hr', { heading: 'شرائح عامة' }], Object.entries(D.LAYOUTS).map(([k, v]) => ({ label: 'شريحة ' + v.name, run: () => addSlide(k) })),
+    ['kpi', 'chart', 'table', 'compare'].map((t) => ({ label: 'شريحة: ' + BLOCK_NAMES[t], run: () => { addSlide('content'); addBlock(t); } }))), { side: 'right' });
 }
 function dupSlide() {
   edit((r) => {
@@ -356,27 +338,20 @@ function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(() => 
 /* ---------- التصدير والمشاركة ---------- */
 async function ensureSaved() { if (store.dirty) return save(false); return true; }
 function exportMenu(e) {
-  const root = $('menu-root'); if (root.firstChild) { root.replaceChildren(); return; }
-  const r = e.currentTarget.getBoundingClientRect();
-  const item = (label, fn) => el('button', { type: 'button', role: 'menuitem', onclick: async () => { root.replaceChildren(); try { await fn(); } catch (err) { toast(err.message || 'تعذر التنفيذ', { tone: 'err' }); } } }, el('span', {}, label));
-  const items = [
-    item('عرض بملء الشاشة', async () => { if (await ensureSaved()) window.open('/decks/' + serverId + '.html#present', '_blank'); }),
-    item('PDF / طباعة', async () => { if (await ensureSaved()) window.open('/decks/' + serverId + '.html#print', '_blank'); }),
-    item('صفحة ويب HTML (تنزيل)', async () => { if (await ensureSaved()) location.href = '/api/decks/' + serverId + '/export.html'; }),
-    item('PowerPoint ‏(PPTX)', async () => { const m = await import('./pptx.js'); await m.exportPptx(deck(), cfg); }),
-    item('صور PNG لكل الشرائح', async () => { const m = await import('./pptx.js'); await m.exportPng(deck(), cfg, cur); }),
-    item('رابط مشاركة', async () => { if (await ensureSaved()) { const m = await import('./share-ui.js'); m.openShareDialog({ type: 'deck', id: serverId, title: deck().title }); } }),
-    item('تحويل إلى تقرير', async () => {
+  popupMenu(e.currentTarget, [
+    { label: 'عرض بملء الشاشة', run: async () => { if (await ensureSaved()) window.open('/decks/' + serverId + '.html#present', '_blank'); } },
+    { label: 'PDF / طباعة', run: async () => { if (await ensureSaved()) window.open('/decks/' + serverId + '.html#print', '_blank'); } },
+    { label: 'صفحة ويب HTML (تنزيل)', run: async () => { if (await ensureSaved()) location.href = '/api/decks/' + serverId + '/export.html'; } },
+    { label: 'PowerPoint ‏(PPTX)', run: async () => { const m = await import('./pptx.js'); await m.exportPptx(deck(), cfg); } },
+    { label: 'صور PNG لكل الشرائح', run: async () => { const m = await import('./pptx.js'); await m.exportPng(deck(), cfg, cur); } },
+    { label: 'رابط مشاركة', run: async () => { if (await ensureSaved()) { const m = await import('./share-ui.js'); m.openShareDialog({ type: 'deck', id: serverId, title: deck().title }); } } },
+    { label: 'تحويل إلى تقرير', run: async () => {
       const rep = D.toReport(deck());
       const res = await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rep) });
       const out = await res.json().catch(() => ({})); if (!res.ok) throw new Error(out.error || 'تعذر الإنشاء');
       location.href = '/?edit=' + out.id;
-    }),
-  ];
-  const menu = el('div', { class: 'menu', role: 'menu', style: `top:${r.bottom + 6}px;left:${Math.max(8, r.left)}px` }, ...items);
-  root.replaceChildren(menu); fitMenu(menu);
-  const close = (ev) => { if (!menu.contains(ev.target)) { root.replaceChildren(); document.removeEventListener('click', close, true); } };
-  setTimeout(() => document.addEventListener('click', close, true), 0);
+    } },
+  ], { side: 'left' });
 }
 
 /* ---------- التشغيل ---------- */
@@ -412,14 +387,9 @@ addEventListener('beforeunload', (e) => { if (store.dirty) { e.preventDefault();
 function buildToolbar() {
   const tb = $('dk-toolbar'), wrap = document.querySelector('.dk-wrap');
   const add = (label, fn, title) => btn(label, { cls: 'sm ghost', title: title || label, onclick: fn });
-  const secMenu = (e) => {
-    const root = $('menu-root'); if (root.firstChild) { root.replaceChildren(); return; }
-    const r = e.currentTarget.getBoundingClientRect();
-    const m = el('div', { class: 'menu', role: 'menu', style: `top:${r.bottom + 6}px;left:${Math.max(8, r.left)}px` }, ...['table', 'chart', 'kpi', 'compare', 'calc', 'progress', 'timeline'].map((t) => el('button', { type: 'button', role: 'menuitem', onclick: () => { root.replaceChildren(); addExtra('block', t); } }, el('span', {}, BLOCK_NAMES[t]))));
-    root.replaceChildren(m); fitMenu(m); const close = (ev) => { if (!m.contains(ev.target)) { root.replaceChildren(); document.removeEventListener('click', close, true); } }; setTimeout(() => document.addEventListener('click', close, true), 0);
-  };
+  const secMenu = (e) => popupMenu(e.currentTarget, ['table', 'chart', 'kpi', 'compare', 'calc', 'progress', 'timeline'].map((t) => ({ label: BLOCK_NAMES[t], run: () => addExtra('block', t) })));
   const setZoom = (f) => { zoomF = Math.max(0.4, Math.min(3, f)); renderStage(); };
-  tb.append(add('＋ نص', () => addExtra('text'), 'إضافة صندوق نص'), add('🖼 صورة', () => addExtra('photo'), 'إضافة صورة مع التدرج الرسمي'), add('▦ جدول/رسم/مؤشرات', secMenu, 'إضافة قسم بيانات'), add('▭ شكل', () => addExtra('rect'), 'مستطيل'), add('● دائرة', () => addExtra('ellipse'), 'دائرة'),
+  tb.append(add('＋ نص', () => addExtra('text'), 'إضافة صندوق نص'), add('🖼 صورة', () => addExtra('photo'), 'إضافة صورة مع التدرج الرسمي'), add('▦ جدول/رسم/مؤشرات', secMenu, 'إضافة قسم بيانات'), add('▭ شكل', () => addExtra('rect'), 'مستطيل'), add('● دائرة', () => addExtra('ellipse'), 'دائرة'), add('⬢ سداسي', () => addExtra('hex'), 'شكل سداسي (هوية هدية)'),
     el('span', { class: 'sep' }), add('−', () => setZoom(zoomF - 0.2), 'تصغير'), el('span', { class: 'zoom', id: 'zoom-pct' }, '100%'), add('+', () => setZoom(zoomF + 0.2), 'تكبير'), add('ملاءمة', () => setZoom(1), 'ملاءمة الشاشة'),
     el('span', { class: 'sep' }),
     add('☰ الشرائح', () => { wrap.classList.toggle('no-l'); LS('dk-nol', wrap.classList.contains('no-l') ? '1' : '0'); setTimeout(renderStage, 220); }, 'طي/إظهار قائمة الشرائح'),

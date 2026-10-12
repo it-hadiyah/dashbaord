@@ -27,7 +27,7 @@
 <script type="module">
 import { icon } from '/js/icons.js';
 import { el, btn, toast, modal } from '/js/ui.js';
-import { call } from '/js/workflow-ui.js';
+import { call, statusChip } from '/js/workflow-ui.js';
 import { mountUserChip } from '/js/userchip.js';
 
 document.getElementById('si').innerHTML = icon('search', 16);
@@ -49,7 +49,7 @@ function draw() {
   if (all.length && !rows.length) list.append(el('div', { class: 'empty' }, el('b', {}, 'لا نتائج مطابقة')));
   rows.forEach((r) => list.append(el('div', { class: 'ritem' },
     el('div', { class: 'rt' }, el('a', { class: 'ttl', href: (isDeck() ? '/decks/' : '/reports/') + r.id + '.html' }, r.title || 'بدون عنوان'),
-      el('div', { class: 'rm' }, el('span', { class: 'chip-status ' + r.status }, r.statusLabel), isDeck() ? el('span', {}, r.slides + ' شريحة') : null, scope !== 'mine' || r.owner !== me.username ? el('span', {}, 'صاحب التقرير: ' + (r.ownerName || r.owner || 'بدون مالك')) : null, r.sharedWithName && r.status !== 'draft' ? el('span', {}, 'عند: ' + r.sharedWithName) : null, el('span', {}, r.templateName || 'تقرير'), el('span', {}, 'آخر تعديل: ' + fmt(r.updatedAt || r.createdAt)))),
+      el('div', { class: 'rm' }, statusChip(r.status), isDeck() ? el('span', {}, r.slides + ' شريحة') : null, scope !== 'mine' || r.owner !== me.username ? el('span', {}, 'صاحب التقرير: ' + (r.ownerName || r.owner || 'بدون مالك')) : null, r.sharedWithName && r.status !== 'draft' ? el('span', {}, 'عند: ' + r.sharedWithName) : null, el('span', {}, r.templateName || 'تقرير'), el('span', {}, 'آخر تعديل: ' + fmt(r.updatedAt || r.createdAt)))),
     el('div', { class: 'ra' },
       r.canEdit ? el('a', { class: 'btn sm', href: (isDeck() ? '/deck.html?id=' : '/?edit=') + r.id }, 'تعديل') : null,
       scope === 'inbox' ? el('a', { class: 'btn sm primary', href: (isDeck() ? '/decks/' : '/reports/') + r.id + '.html' }, 'مراجعة') : null,

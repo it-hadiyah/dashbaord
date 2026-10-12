@@ -5,6 +5,9 @@ export const STATUS = { draft: 'مسودة', submitted: 'بانتظار الاع
 const ACTIONS = { create: 'إنشاء التقرير', share: 'إرسال للاعتماد', withdraw: 'سحب من الاعتماد', approve: 'اعتماد', return: 'إعادة للتعديل', reopen: 'إعادة فتح', reassign: 'نقل الملكية', archive: 'أرشفة', unarchive: 'إلغاء الأرشفة', snapshot: 'حفظ نسخة', restore: 'استعادة نسخة' };
 
 export const baseOf = (kind) => (kind === 'deck' ? '/api/decks/' : '/api/reports/');
+// مكوّن حالة الاعتماد المشترك (التقارير والعروض)
+export const statusChip = (status) => el('span', { class: 'chip-status ' + status }, STATUS[status] || '');
+
 export async function call(id, act, body, kind) {
   const res = await fetch(baseOf(kind) + encodeURIComponent(id) + '/' + act, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
   const out = await res.json().catch(() => ({}));

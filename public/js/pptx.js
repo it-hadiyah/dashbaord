@@ -158,6 +158,7 @@ const clr = (v, k = 1) => { const p = parseColor(v); if (!p) return ''; const a 
 function geomXml(e) {
   const m = Math.max(1, Math.min(e.w, e.h));
   if (e.shape === 'ellipse') return '<a:prstGeom prst="ellipse"><a:avLst/></a:prstGeom>';
+  if (e.shape === 'hex') return '<a:prstGeom prst="hexagon"><a:avLst><a:gd name="adj" fmla="val 25000"/><a:gd name="vf" fmla="val 115470"/></a:avLst></a:prstGeom>';
   if (e.shape === 'arch') return `<a:prstGeom prst="round2SameRect"><a:avLst><a:gd name="adj1" fmla="val 50000"/><a:gd name="adj2" fmla="val ${Math.min(50000, Math.round(18 / m * 100000))}"/></a:avLst></a:prstGeom>`;
   if (e.radius > 0) return `<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ${Math.min(50000, Math.round(e.radius / m * 100000))}"/></a:avLst></a:prstGeom>`;
   return '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>';
@@ -306,7 +307,7 @@ export async function buildPptx(deck, cfg) {
   try { if (cfg.logo) logos.dark = await fetchPng(cfg.logo); } catch (e) { /* بدون شعار */ }
   const files = [], slideRels = [];
   const media = [];
-  const n = deck.slides.length;
+  const n = deck.slides.length, notes = [];
   for (let i = 0; i < n; i++) {
     const c = Object.assign({ id: 1, media: [], rels: [] }, base);
     const xml = await slideXml(c, deck, deck.slides[i], i, n, logos, { sw, sh, cfg });
@@ -315,6 +316,15 @@ export async function buildPptx(deck, cfg) {
     files.push({ name: `ppt/slides/slide${i + 1}.xml`, data: xml });
     files.push({ name: `ppt/slides/_rels/slide${i + 1}.xml.rels`, data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>${rels.join('')}</Relationships>` });
     slideRels.push(i + 1);
+    const note = String(deck.slides[i].notes || '').trim();
+    if (note) {
+      notes.push(i + 1);
+      files[files.length - 1].data = files[files.length - 1].data.replace('</Relationships>', `<Relationship Id="rIdNotes" Type="${REL}/notesSlide" Target="../notesSlides/notesSlide${i + 1}.xml"/></Relationships>`);
+      const GRP = '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>';
+      const paras = note.split('\n').map((ln) => `<a:p><a:pPr algn="r" rtl="1"/><a:r><a:rPr lang="ar-SA" dirty="0"/><a:t>${X(ln)}</a:t></a:r></a:p>`).join('');
+      files.push({ name: `ppt/notesSlides/notesSlide${i + 1}.xml`, data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:notes ${NS}><p:cSld><p:spTree>${GRP}<p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image"/><p:cNvSpPr><a:spLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp><p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>${paras}</p:txBody></p:sp></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:notes>` });
+      files.push({ name: `ppt/notesSlides/_rels/notesSlide${i + 1}.xml.rels`, data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/notesMaster" Target="../notesMasters/notesMaster1.xml"/><Relationship Id="rId2" Type="${REL}/slide" Target="../slides/slide${i + 1}.xml"/></Relationships>` });
+    }
   }
   media.forEach((m) => files.push({ name: 'ppt/media/' + m.name, data: m.data }));
   const W = E(sw), H = E(sh);
@@ -328,6 +338,16 @@ export async function buildPptx(deck, cfg) {
     { name: 'ppt/slideLayouts/slideLayout1.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout ${NS} type="blank" preserve="1"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>` },
     { name: 'ppt/slideLayouts/_rels/slideLayout1.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>` },
     { name: 'ppt/theme/theme1.xml', data: THEME(base.a, base.d, base.x) });
+  if (notes.length) {
+    const f = (name) => files.find((x) => x.name === name);
+    f('[Content_Types].xml').data = f('[Content_Types].xml').data.replace('</Types>', `<Override PartName="/ppt/notesMasters/notesMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.notesMaster+xml"/><Override PartName="/ppt/theme/theme2.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>${notes.map((k) => `<Override PartName="/ppt/notesSlides/notesSlide${k}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml"/>`).join('')}</Types>`);
+    f('ppt/presentation.xml').data = f('ppt/presentation.xml').data.replace('</p:sldMasterIdLst>', '</p:sldMasterIdLst><p:notesMasterIdLst><p:notesMasterId r:id="rIdNM"/></p:notesMasterIdLst>');
+    f('ppt/_rels/presentation.xml.rels').data = f('ppt/_rels/presentation.xml.rels').data.replace('</Relationships>', `<Relationship Id="rIdNM" Type="${REL}/notesMaster" Target="notesMasters/notesMaster1.xml"/></Relationships>`);
+    const GRP = '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>';
+    files.push({ name: 'ppt/notesMasters/notesMaster1.xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:notesMaster ${NS}><p:cSld><p:bg><p:bgRef idx="1001"><a:schemeClr val="bg1"/></p:bgRef></p:bg><p:spTree>${GRP}<p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image"/><p:cNvSpPr><a:spLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvSpPr><p:nvPr><p:ph type="sldImg" idx="2"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="685800" y="1143000"/><a:ext cx="5486400" cy="3086100"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:sp><p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" sz="quarter" idx="3"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="685800" y="4400550"/><a:ext cx="5486400" cy="3600450"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="ar-SA"/></a:p></p:txBody></p:sp></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:notesStyle><a:lvl1pPr algn="r" rtl="1"><a:defRPr sz="1200"/></a:lvl1pPr></p:notesStyle></p:notesMaster>` });
+    files.push({ name: 'ppt/notesMasters/_rels/notesMaster1.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/theme" Target="../theme/theme2.xml"/></Relationships>` });
+    files.push({ name: 'ppt/theme/theme2.xml', data: THEME(base.a, base.d, base.x) });
+  }
   return zip(files, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
 }
 

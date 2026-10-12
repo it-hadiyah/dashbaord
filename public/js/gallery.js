@@ -60,5 +60,6 @@ export function buildGallery(root, onUse, allowed, onCustom) {
     emptyAll: 'لا توجد أنواع تقارير مسموحة لحسابك. تواصل مع مسؤول النظام ليحدد لك أنواع التقارير.',
     thumb: { aspect: '210 / 297', variants: [['cover', 'الغلاف'], ['content', 'المحتوى']], mount: (box, item) => { const fn = mountReportThumb(box, item.raw); return (k) => fn(k); } },
     onUse: (item, sample) => onUse(item.raw, sample),
+    details: (item) => { const t = item.raw; return el('div', {}, el('h4', {}, 'أقسام القالب'), el('ol', {}, t.sections.map((x) => el('li', {}, el('b', {}, x.title || T.BLOCKS[x.type].name), x.hint ? el('div', { class: 'muted', style: 'font-size:13px' }, x.hint) : null))), el('p', { class: 'muted' }, 'الغلاف: ' + t.cover + ' · الألوان: ' + (T.PALETTES[t.palette] || {}).name + (t.toc ? ' · فهرس تلقائي' : '') + (t.closing ? ' · صفحة ختام' : ''))); },
   });
 }

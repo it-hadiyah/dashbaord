@@ -159,7 +159,9 @@
       const { W, H, M } = c, n = c.n(6), cells = grid(n, 2, M, 190, W - 2 * M, H - 260, 20);
       const els = titleBlock(c, { y: 50 });
       cells.forEach((g, i) => {
-        els.push(E.text('n' + i, null, String(i + 1), g.x + g.w - 70, g.y, 70, g.h, { size: 56, color: GOLD, font: 'd', anchor: 'm', align: 'center' }));
+        const hy = g.y + g.h / 2 - 32;
+        els.push(E.rect('hx' + i, g.x + g.w - 72, hy, 64, 64, { fill: GOLD, shape: 'hex' }));
+        els.push(E.text('n' + i, null, String(i + 1), g.x + g.w - 72, hy, 64, 64, { size: 30, color: '#fff', font: 'd', anchor: 'm', align: 'center' }));
         els.push(E.text('i' + i + 't', 'items.' + i + '.t', it(c, i, 't'), g.x, g.y, g.w - 82, g.h, { size: fit(it(c, i, 't'), g.w - 82, g.h, 28, 14, 1.35), lh: 1.35, color: '#fff', weight: 600, anchor: 'm', ph: 'اكتب الهدف' }));
       });
       els.push(E.img('pat', 'patternLight', 0, H - 56, W, 56, { opacity: 0.2 }));
@@ -170,7 +172,7 @@
       els.push(E.rect('line', M, 372, W - 2 * M, 4, { fill: 'rgba(255,255,255,.35)', radius: 2 }));
       for (let i = 0; i < n; i++) {
         const cx = W - M - step * i - step / 2;
-        els.push(E.rect('dot' + i, cx - 26, 350, 52, 52, { fill: GOLD, shape: 'ellipse' }));
+        els.push(E.rect('dot' + i, cx - 28, 346, 56, 56, { fill: GOLD, shape: 'hex' }));
         els.push(E.text('d' + i, null, String(i + 1), cx - 26, 350, 52, 52, { size: 26, color: '#fff', align: 'center', anchor: 'm', font: 'd' }));
         els.push(E.text('i' + i + 't', 'items.' + i + '.t', it(c, i, 't'), cx - step / 2 + 4, 420, step - 8, 110, { size: fit(it(c, i, 't'), step - 8, 110, 24, 13, 1.3), lh: 1.3, color: '#fff', align: 'center', weight: 600, ph: 'المرحلة' }));
       }
@@ -300,7 +302,7 @@
     const id = `data-eid="${esc(e.id)}"`, ex = e.extra ? ' extra' : '';
     if (e.type === 'rect') {
       let bg = e.fill || 'transparent';
-      return `<div class="el el-rect${ex}" ${id} style="${elStyle(e)};background:${bg};border-radius:${shapeRadius(e)}${e.shadow ? ';box-shadow:0 6px 20px rgba(0,60,52,.12)' : ''}${e.border ? `;border:${e.bw || 2}px solid ${e.border}` : ''}"></div>`;
+      return `<div class="el el-rect${ex}" ${id} style="${elStyle(e)};background:${bg};border-radius:${shapeRadius(e)}${e.shape === 'hex' ? ';clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)' : ''}${e.shadow ? ';box-shadow:0 6px 20px rgba(0,60,52,.12)' : ''}${e.border ? `;border:${e.bw || 2}px solid ${e.border}` : ''}"></div>`;
     }
     if (e.type === 'text') {
       const txt = String(e.text || '').trim();
@@ -344,6 +346,7 @@
     const base = { id, type, x: W * 0.3, y: H * 0.35, w: W * 0.4, h: H * 0.2 };
     if (type === 'text') return Object.assign(base, { text: 'نص جديد', size: 32, weight: 700, color: INK, align: 'right', lh: 1.4, anchor: 'm', font: 'b', field: 'extra.' + id, ph: 'اكتب هنا' });
     if (type === 'rect') return Object.assign(base, { fill: GOLD, radius: 16, shape: 'rect', h: H * 0.2 });
+    if (type === 'hex') return Object.assign(base, { type: 'rect', fill: GOLD, shape: 'hex', w: 160, h: 160 });
     if (type === 'ellipse') return Object.assign(base, { type: 'rect', fill: '#007f73', shape: 'ellipse', w: 160, h: 160 });
     if (type === 'photo') return Object.assign(base, { w: W * 0.34, h: H * 0.4, radius: 14, photo: { src: '', x: 50, y: 40, scale: 1, ov: Object.assign(officialOverlay('bottom'), { on: false }) } });
     if (type === 'block') return Object.assign(base, { w: W * 0.5, h: H * 0.45, blockId: extra && extra.blockId });

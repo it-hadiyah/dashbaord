@@ -19,7 +19,7 @@ const IND = require('./lib/indicators');
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = path.join(__dirname, 'public');
-const REPORTS_DIR = path.join(__dirname, 'reports');
+const REPORTS_DIR = process.env.RB_REPORTS || path.join(__dirname, 'reports');
 const MAX_BODY = 24 * 1024 * 1024;
 const MAX_IMAGE = 3 * 1024 * 1024;
 const ID_RE = /^[a-z0-9-]{3,40}$/;
@@ -225,7 +225,7 @@ async function inboxCount(user) {
 
 
 /* ---------- العروض التقديمية ---------- */
-const DECKS_DIR = path.join(__dirname, 'decks');
+const DECKS_DIR = process.env.RB_DECKS || path.join(__dirname, 'decks');
 const D = require('./public/shared/deck.js');
 const DECK_BLOCKS = new Set(D.BLOCK_TYPES.concat(['text', 'list']));
 const sid = (v) => (/^[A-Za-z0-9_-]{1,40}$/.test(String(v || '')) ? String(v) : '');
@@ -243,7 +243,7 @@ function cleanExtra(e) {
   const o = { id: String(e.id), type, x: nrm(e.x, -2000, 4000, 100), y: nrm(e.y, -2000, 4000, 100), w: nrm(e.w, 4, 4000, 200), h: nrm(e.h, 4, 4000, 100) };
   if (e.opacity != null) o.opacity = nrm(e.opacity, 0, 1, 1);
   if (type === 'text') Object.assign(o, { text: str(e.text, 2000), size: nrm(e.size, 8, 300, 32), weight: nrm(e.weight, 100, 900, 700), color: COLOR.test(e.color) ? e.color : '#17302c', align: ['right', 'center', 'left'].includes(e.align) ? e.align : 'right', lh: nrm(e.lh, 1, 3, 1.4), anchor: ['t', 'm', 'b'].includes(e.anchor) ? e.anchor : 'm', font: e.font === 'd' ? 'd' : 'b', field: 'extra.' + o.id, ph: str(e.ph, 80) });
-  if (type === 'rect') Object.assign(o, { fill: COLOR.test(e.fill) ? e.fill : '#c9a24b', radius: nrm(e.radius, 0, 300, 0), shape: ['rect', 'ellipse', 'arch'].includes(e.shape) ? e.shape : 'rect', shadow: !!e.shadow, border: COLOR.test(e.border) ? e.border : '', bw: nrm(e.bw, 0, 40, 2) });
+  if (type === 'rect') Object.assign(o, { fill: COLOR.test(e.fill) ? e.fill : '#c9a24b', radius: nrm(e.radius, 0, 300, 0), shape: ['rect', 'ellipse', 'arch', 'hex'].includes(e.shape) ? e.shape : 'rect', shadow: !!e.shadow, border: COLOR.test(e.border) ? e.border : '', bw: nrm(e.bw, 0, 40, 2) });
   if (type === 'photo') Object.assign(o, { photo: cleanPhoto(e.photo), radius: nrm(e.radius, 0, 300, 0), shape: ['rect', 'ellipse', 'arch'].includes(e.shape) ? e.shape : 'rect' });
   if (type === 'block') o.blockId = idKey(e.blockId) ? String(e.blockId) : '';
   return o;

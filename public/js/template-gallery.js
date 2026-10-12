@@ -1,10 +1,10 @@
 // معرض قوالب موحّد للتقارير والعروض: نفس البطاقات والبحث والتصنيفات والمفضلة وحالات التحميل،
 // وتتغير المعاينة (نسبة الأبعاد وطريقة الرسم) بحسب نوع المستند عبر opts.thumb
-import { el, btn } from './ui.js';
+import { el, btn, modal } from './ui.js';
 import { icon } from './icons.js';
 
 export function buildTemplateGallery(root, opts) {
-  const { items, categories, user, favPrefix, thumb, onUse, extra, emptyAll } = opts;
+  const { items, categories, user, favPrefix, thumb, onUse, extra, emptyAll, details } = opts;
   const favKey = favPrefix + (user || '');
   const readFavs = () => { try { return new Set(JSON.parse(localStorage.getItem(favKey) || '[]')); } catch (e) { return new Set(); } };
   const favs = readFavs(), writeFavs = () => { try { localStorage.setItem(favKey, JSON.stringify(Array.from(favs))); } catch (e) { /* ignore */ } };
@@ -21,7 +21,7 @@ export function buildTemplateGallery(root, opts) {
     const tabs = el('div', { class: 'thumb-tabs', role: 'group', 'aria-label': 'معاينة القالب' }, thumb.variants.map(([k, label], i) => el('button', { type: 'button', class: i === 0 ? 'on' : '', 'aria-pressed': String(i === 0), onclick: (e) => { if (switchTo) switchTo(k); tabs.querySelectorAll('button').forEach((b) => { b.classList.toggle('on', b === e.currentTarget); b.setAttribute('aria-pressed', String(b === e.currentTarget)); }); } }, label)));
     const star = el('button', { type: 'button', class: 'fav', 'aria-pressed': String(favs.has(t.id)), title: 'تثبيت في المفضلة', 'aria-label': 'تثبيت ' + t.name + ' في المفضلة', onclick: () => { if (favs.has(t.id)) favs.delete(t.id); else favs.add(t.id); writeFavs(); star.setAttribute('aria-pressed', String(favs.has(t.id))); star.textContent = favs.has(t.id) ? '★' : '☆'; order(); apply(); } }, favs.has(t.id) ? '★' : '☆');
     c.append(box, tabs, el('div', { class: 'tinfo' },
-      el('div', { class: 'tmeta' }, el('span', { class: 'tag' }, t.category), star),
+      el('div', { class: 'tmeta' }, el('span', { class: 'tag' }, t.category), el('span', {}, details ? el('button', { type: 'button', class: 'fav', style: 'font-size:13px;margin-inline-end:6px;color:var(--brand)', title: 'تفاصيل القالب', onclick: () => { const body = details(t); modal('تفاصيل القالب: ' + t.name, el('div', { class: 'tdetail' }, el('p', { class: 'muted' }, t.desc), body, el('div', { class: 'dlg-actions' }, btn('استخدم القالب', { cls: 'primary', onclick: (e) => { e.target.closest('dialog').querySelector('button[aria-label="إغلاق"]').click(); onUse(t, false); } })))); } }, 'تفاصيل') : null, star)),
       el('h3', {}, t.name), el('p', {}, t.desc), t.meta ? el('small', { class: 'muted' }, t.meta) : null,
       el('div', { class: 'tact' }, btn('استخدم القالب', { cls: 'primary', onclick: () => onUse(t, false) }), btn('ببيانات تجريبية', { cls: 'ghost', icon: 'sparkle', title: 'يملأ القالب ببيانات توضيحية لتجربة الشكل', onclick: () => onUse(t, true) }))));
     const io = new IntersectionObserver((ents) => { if (!ents[0].isIntersecting) return; io.disconnect(); box.replaceChildren(); switchTo = thumb.mount(box, t, thumb.variants[0][0]) || null; }, { rootMargin: '300px' });

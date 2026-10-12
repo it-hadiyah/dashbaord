@@ -67,3 +67,22 @@ export function modal(title, content, o = {}) {
 }
 
 export const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+/* ---------- قائمة منبثقة مشتركة (تُستعمل في محرر التقارير ومحرر العروض) ---------- */
+export function popupMenu(anchor, items, o = {}) {
+  const root = document.getElementById('menu-root') || document.body.appendChild(el('div', { id: 'menu-root' }));
+  if (root.firstChild) { root.replaceChildren(); return null; }
+  const r = anchor.getBoundingClientRect();
+  const close = () => { root.replaceChildren(); document.removeEventListener('click', away, true); };
+  const away = (ev) => { if (!m.contains(ev.target) && ev.target !== anchor && !anchor.contains(ev.target)) close(); };
+  const m = el('div', { class: 'menu', role: 'menu', style: `top:${r.bottom + 6}px;${o.side === 'right' ? `right:${Math.max(8, innerWidth - r.right)}px` : `left:${Math.max(8, r.left)}px`}` });
+  items.filter(Boolean).forEach((it) => {
+    if (it === 'hr') m.append(el('hr'));
+    else if (it.heading) m.append(el('div', { class: 'menu-h', style: 'padding:4px 12px;font-size:12px;color:var(--muted)' }, it.heading));
+    else m.append(el('button', { type: 'button', role: 'menuitem', onclick: async () => { close(); try { await it.run(); } catch (e) { toast(e.message || 'تعذر التنفيذ', { tone: 'err' }); } } }, it.icon ? el('span', { html: icon(it.icon, 18) }) : null, el('span', {}, it.label, it.sub ? el('small', {}, it.sub) : null)));
+  });
+  root.replaceChildren(m);
+  requestAnimationFrame(() => { const b = m.getBoundingClientRect(); if (b.bottom > innerHeight - 8) m.style.top = Math.max(8, innerHeight - b.height - 8) + 'px'; m.style.maxHeight = innerHeight - 16 + 'px'; m.style.overflow = 'auto'; });
+  setTimeout(() => document.addEventListener('click', away, true), 0);
+  return { close };
+}

@@ -40,10 +40,11 @@
 <script type="module">
 import { el } from '/js/ui.js';
 import { mountUserChip } from '/js/userchip.js';
+import { statusChip } from '/js/workflow-ui.js';
 const fmt = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('ar-SA-u-ca-gregory', { month: 'short', day: 'numeric' }); };
 const kpi = (n, label, href) => el('a', { class: 'db-kpi', href }, el('b', {}, String(n)), el('span', {}, label));
 const card = (title, link, rows, emptyMsg) => el('section', { class: 'db-card' }, el('h2', {}, title, link ? el('a', { href: link[0] }, link[1]) : null), rows.length ? rows : el('div', { class: 'db-empty' }, emptyMsg));
-const rep = (r, extra) => el('div', { class: 'db-li' }, el('div', {}, el('a', { class: 't', href: (r.kind === 'deck' ? '/decks/' : '/reports/') + r.id + '.html' }, (r.kind === 'deck' ? '🖥 ' : '') + (r.title || 'بدون عنوان')), el('div', {}, el('small', {}, [extra, r.templateName, fmt(r.updatedAt)].filter(Boolean).join(' · ')))), el('span', { class: 'chip-status ' + r.status }, r.statusLabel));
+const rep = (r, extra) => el('div', { class: 'db-li' }, el('div', {}, el('a', { class: 't', href: (r.kind === 'deck' ? '/decks/' : '/reports/') + r.id + '.html' }, (r.kind === 'deck' ? '🖥 ' : '') + (r.title || 'بدون عنوان')), el('div', {}, el('small', {}, [extra, r.templateName, fmt(r.updatedAt)].filter(Boolean).join(' · ')))), statusChip(r.status));
 (async () => {
   const me = await (await fetch('/api/me')).json();
   mountUserChip(document.getElementById('user-chip'), me);

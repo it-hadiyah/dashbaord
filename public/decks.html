@@ -76,6 +76,17 @@ function drawTemplates() {
     categories: ['الكل', 'رسمي هدية', 'إدارية', 'مالية', 'مشاريع', 'عام'], user: me.username, favPrefix: 'rb-fav-deck:',
     thumb: { aspect: rt.w + ' / ' + rt.h, variants: [['0', 'الغلاف'], ['1', 'المحتوى'], ['2', 'شريحة أخرى']], mount: (box, item) => mountDeckThumb(box, item, ratio) },
     onUse: (item, sample) => create(item.raw, sample),
+    details: (item) => {
+      const deck = D.createDeck(item.id, { sample: false, ratio }), n = deck.slides.length;
+      const grid = el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;max-height:60vh;overflow:auto;padding:4px' });
+      deck.slides.forEach((s, i) => {
+        const box = el('div', { class: 'thumb', style: `aspect-ratio:${rt.w} / ${rt.h};${D.rootStyle(deck)};border:1px solid var(--border);border-radius:8px` });
+        const fit = () => { const sl = box.firstElementChild; if (sl) { sl.style.position = 'absolute'; sl.style.top = '0'; sl.style.right = '0'; sl.style.transformOrigin = 'top right'; sl.style.transform = `scale(${box.clientWidth / rt.w})`; sl.style.pointerEvents = 'none'; } };
+        const io = new IntersectionObserver((en) => { if (en[0].isIntersecting) { io.disconnect(); box.innerHTML = D.renderSlide(deck, s, { config: cfg, index: i, total: n, preview: true }); fit(); new ResizeObserver(fit).observe(box); } }, { rootMargin: '200px' }); io.observe(box);
+        grid.append(el('figure', { style: 'margin:0' }, box, el('figcaption', { style: 'font-size:12px;color:var(--muted);padding:4px 2px' }, (i + 1) + '. ' + D.layoutName(s.layout) + (s.title ? ' — ' + s.title : ''))));
+      });
+      return grid;
+    },
   });
 }
 document.getElementById('ratio').onchange = drawTemplates;

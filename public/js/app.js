@@ -1,5 +1,5 @@
 // منشئ التقارير: التنسيق بين المعرض والمحرر ولوحاته
-import { $, $$, el, btn, iconBtn, toast, confirmDialog, modal, debounce } from './ui.js';
+import { $, $$, el, btn, iconBtn, toast, confirmDialog, modal, debounce, popupMenu } from './ui.js';
 import { icon } from './icons.js';
 import * as T from './templates.js';
 import * as S from './store.js';
@@ -235,21 +235,14 @@ async function doSave() {
 const fileBase = () => ((store.report.title || 'تقرير').replace(/[\\/:*?"<>|]+/g, ' ').trim() + ' - ' + (store.report.date || new Date().toISOString().slice(0, 10)));
 
 $('#b-export').onclick = (e) => {
-  const root = $('#menu-root');
-  if (root.firstChild) { root.replaceChildren(); return; }
-  const r = e.currentTarget.getBoundingClientRect();
-  const item = (ic, label, sub, fn) => el('button', { type: 'button', role: 'menuitem', onclick: () => { root.replaceChildren(); fn(); } }, el('span', { html: icon(ic, 18) }), el('span', {}, label, sub ? el('small', {}, sub) : null));
-  const menu = el('div', { class: 'menu', role: 'menu', style: `top:${r.bottom + 6}px;inset-inline-start:${document.dir === 'rtl' ? 'auto' : r.left + 'px'};left:${r.left}px` },
-    item('print', 'طباعة / حفظ PDF', 'بجودة عالية وبصيغة A4، وتُحفظ الألوان والخطوط', () => { const t = document.title; document.title = fileBase(); P.printPreview(); setTimeout(() => { document.title = t; }, 1500); }),
+  const item = (ic, label, sub, fn) => ({ icon: ic, label, sub, run: fn });
+  popupMenu(e.currentTarget, [    item('print', 'طباعة / حفظ PDF', 'بجودة عالية وبصيغة A4، وتُحفظ الألوان والخطوط', () => { const t = document.title; document.title = fileBase(); P.printPreview(); setTimeout(() => { document.title = t; }, 1500); }),
     item('file', 'تنزيل ملف Word ‏(DOCX)', 'ملف قابل للتحرير: عناوين وجداول وصور للرسوم', async () => { try { const m = await import('./docx.js'); await m.exportDocx(store.report, P.config, fileBase(), store.workflow); toast('تم تجهيز ملف Word', { tone: 'ok' }); } catch (err) { toast('تعذر إنشاء ملف Word: ' + err.message, { tone: 'err' }); } }),
     item('layout', 'حفظ كقالب مخصص', 'يعيد استخدام الهيكل والتصميم، ويمكن اعتماده كقالب رسمي', saveAsTemplate),
-    el('hr'),
+    'hr',
     item('download', 'نسخة البيانات (JSON)', 'للنسخ الاحتياطي، والمحتوى منفصل عن الشكل', () => { const a = el('a', { href: URL.createObjectURL(new Blob([JSON.stringify(store.report, null, 2)], { type: 'application/json' })), download: fileBase() + '.json' }); document.body.append(a); a.click(); a.remove(); }),
     store.serverId ? item('link', 'رابط مشاركة', 'رابط بعد الدخول أو بكلمة مرور أو لمستخدمين محددين، مع انتهاء وسجل وصول', async () => { const m = await import('./share-ui.js'); m.openShareDialog({ type: 'report', id: store.serverId, title: store.report.title, warn: store.workflow && store.workflow.status !== 'approved' ? 'هذا التقرير غير معتمد بعد؛ سيرى المستلم ما هو محفوظ حالياً.' : '' }); }) : null,
-    store.serverId ? item('link', 'فتح الصفحة النهائية', 'الصفحة المحفوظة على الخادم', () => window.open('/reports/' + store.serverId + '.html', '_blank')) : null);
-  root.replaceChildren(menu);
-  const close = (ev) => { if (!menu.contains(ev.target) && ev.target !== $('#b-export')) { root.replaceChildren(); document.removeEventListener('click', close, true); } };
-  setTimeout(() => document.addEventListener('click', close, true), 0);
+    store.serverId ? item('link', 'فتح الصفحة النهائية', 'الصفحة المحفوظة على الخادم', () => window.open('/reports/' + store.serverId + '.html', '_blank')) : null], { side: 'left' });
 };
 
 $('#b-help').onclick = () => {
