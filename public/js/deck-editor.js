@@ -371,14 +371,16 @@ $('b-save').onclick = () => save(false);
 $('b-share').onclick = async () => { if (!(await ensureSaved())) return; if (await shareDialog(serverId, 'deck')) location.href = '/decks/' + serverId + '.html'; };
 $('b-export').onclick = exportMenu;
 $('b-present').onclick = async () => { if (await ensureSaved()) window.open('/decks/' + serverId + '.html#present', '_blank'); };
+// حرف المفتاح الفعلي بغضّ النظر عن لغة لوحة المفاتيح (عربي/إنجليزي)
+const kc = (e) => (/^Key[A-Z]$/.test(e.code || '') ? e.code.slice(3).toLowerCase() : (e.key || '').toLowerCase());
 document.addEventListener('keydown', (e) => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(false); }
-  else if (!typing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
-  else if (!typing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+  if ((e.ctrlKey || e.metaKey) && kc(e) === 's') { e.preventDefault(); save(false); }
+  else if (!typing && (e.ctrlKey || e.metaKey) && kc(e) === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if (!typing && (e.ctrlKey || e.metaKey) && kc(e) === 'y') { e.preventDefault(); redo(); }
   else if (!typing && !selEid && e.key === 'ArrowDown') { e.preventDefault(); select(cur + 1); }
   else if (!typing && !selEid && e.key === 'ArrowUp') { e.preventDefault(); select(cur - 1); }
-  else if (!typing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); dupSlide(); }
+  else if (!typing && (e.ctrlKey || e.metaKey) && kc(e) === 'd') { e.preventDefault(); dupSlide(); }
 });
 addEventListener('resize', () => renderStage());
 addEventListener('beforeunload', (e) => { if (store.dirty) { e.preventDefault(); e.returnValue = ''; } });

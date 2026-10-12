@@ -265,12 +265,14 @@ navT.classList.add('pane-toggle'); viewT.classList.add('pane-toggle');
 $('#editor-actions').prepend(navT, viewT);
 
 /* ---------- اختصارات لوحة المفاتيح ---------- */
+// حرف المفتاح الفعلي بغضّ النظر عن لغة لوحة المفاتيح (عربي/إنجليزي)
+const kc = (e) => (/^Key[A-Z]$/.test(e.code || '') ? e.code.slice(3).toLowerCase() : (e.key || '').toLowerCase());
 document.addEventListener('keydown', (e) => {
   if ($('#view-editor').hidden) return;
   const mod = e.ctrlKey || e.metaKey;
-  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); doSave(); }
-  else if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { if (document.activeElement && document.activeElement.closest('.rte')) return; e.preventDefault(); S.undo(); }
-  else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { if (document.activeElement && document.activeElement.closest('.rte')) return; e.preventDefault(); S.redo(); }
+  if (mod && kc(e) === 's') { e.preventDefault(); doSave(); }
+  else if (mod && kc(e) === 'z' && !e.shiftKey) { if (document.activeElement && document.activeElement.closest('.rte')) return; e.preventDefault(); S.undo(); }
+  else if (mod && (kc(e) === 'y' || (kc(e) === 'z' && e.shiftKey))) { if (document.activeElement && document.activeElement.closest('.rte')) return; e.preventDefault(); S.redo(); }
   else if (e.key === 'Escape' && $('#panes').dataset.view === 'focus') { $('#v-focus').click(); }
 });
 window.addEventListener('beforeunload', (e) => { if (store.report && store.dirty && !$('#view-editor').hidden) { e.preventDefault(); e.returnValue = ''; } });
