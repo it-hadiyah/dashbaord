@@ -82,7 +82,7 @@ body.preview .blk { cursor: pointer; } body.preview .blk:hover { outline: 2px so
 
 /* شريط العرض للتقرير المحفوظ */
 .viewbar { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 20px; background: #fff; border-bottom: 1px solid #dbe2ea; box-shadow: 0 1px 4px rgba(0, 0, 0, .06); font-size: 14px; flex-wrap: wrap; }
-.viewbar span { color: #647385; font-size: 13px; } .vb-actions { display: flex; gap: 8px; }
+.viewbar span { color: #647385; font-size: 13px; } .viewbar .btn span { color: inherit; font-size: inherit; } .vb-actions { display: flex; gap: 8px; }
 .btn { font: inherit; font-size: 14px; border: 1px solid #c3ccd7; background: #fff; color: #17212c; padding: 7px 16px; border-radius: 8px; text-decoration: none; cursor: pointer; } .btn:hover { background: #f3f5f8; } .btn.primary { background: #1f7a5c; color: #fff; border-color: #1f7a5c; } .btn:focus-visible { outline: 3px solid #1b6fd1; outline-offset: 2px; }
 
 @media (max-width: 860px) { body.view .sheet { zoom: .62; } }
