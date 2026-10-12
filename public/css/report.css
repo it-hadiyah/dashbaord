@@ -145,3 +145,6 @@ body.thumb { overflow: hidden; background: #fff; } body.thumb .pages { padding: 
 .g-ov { position: absolute; top: 26px; bottom: 0; right: 0; left: 0; margin-inline-start: 34mm; pointer-events: none; } .g-ov { grid-column: 1 / -1; } .g-today { position: absolute; top: 0; bottom: 0; width: 2px; background: #d4533b; }
 
 .src-note { font-size: 11px; color: #7b8996; margin: 6px 0 0; line-height: 1.5; }
+
+/* شارة «غير معتمد» على غلاف التقرير قبل الاعتماد (تظهر في المعاينة والطباعة وPDF) */
+.cv-unap { margin-inline-start: auto; background: #fff; color: #b42318; border: 2px solid #b42318; border-radius: 8px; padding: 5px 16px; font-size: 15px; font-weight: 800; letter-spacing: .2px; transform: rotate(-4deg); -webkit-print-color-adjust: exact; print-color-adjust: exact; box-shadow: 0 1px 4px rgba(0,0,0,.18); }

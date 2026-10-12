@@ -20,7 +20,7 @@ function bindMessages() {
     if (!t || !e.data || e.data.type !== 'ready') return;
     const report = T.createReport(t.tpl.id, { sample: true });
     report.employee = 'اسم الموظف'; report.department = 'اسم الإدارة';
-    e.source.postMessage(Object.assign(renderPayload(report, { preview: false }), { zoom: 1 }), '*');
+    e.source.postMessage(Object.assign(renderPayload(report, { preview: false, noMark: true }), { zoom: 1 }), '*');
     setTimeout(() => { t.card.classList.add('loaded'); gotoThumb(t); }, 450);
   });
 }

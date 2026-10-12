@@ -253,6 +253,7 @@ export async function exportDocx(report, config, fileName, workflow) {
 
   if (o.cover !== false) {
     if (config.logo) { try { const img = await loadImg(config.logo); const bytes = new Uint8Array(await (await fetch(config.logo)).arrayBuffer()); const h = 1.8 * 360000, w = h * img.naturalWidth / img.naturalHeight; body.push(para(drawing(ctx, addMedia(ctx, bytes, 'png'), Math.round(w), Math.round(h), config.orgName || 'الشعار'), { before: 300, after: 120, line: 240 })); } catch (e) { /* الشعار اختياري */ } }
+    if (!(workflow && workflow.status === 'approved')) body.push(para(run(ctx, '[ غير معتمد ]', { size: 16, b: true, color: 'B42318' }), { before: 60, after: 60 }));
     body.push(para(run(ctx, config.orgName || '', { size: 18, b: true, color: ctx.d }), { before: 200, after: 40 }), para(run(ctx, config.orgSubName || '', { size: 11, color: '647385' }), { after: 2400 }),
       para(run(ctx, tpl.name, { size: 12, b: true, color: ctx.a }), { after: 120 }), para(run(ctx, report.title || 'عنوان التقرير', { size: 32, b: true, color: ctx.d }), { style: 'Title', after: 160, line: 400 }));
     if (report.subtitle) body.push(para(run(ctx, report.subtitle, { size: 16, color: '4A5968' }), { after: 80 }));

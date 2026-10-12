@@ -8,7 +8,7 @@ export let config = {};
 export const loadConfig = async () => { try { config = await (await fetch('/api/config')).json(); } catch (e) { config = {}; } await loadIndicators(); return config; };
 
 export function renderPayload(report, o = {}) {
-  const r = RBR.makeRenderer(report, { config, preview: o.preview !== false, indicators: getIndicatorMap() });
+  const r = RBR.makeRenderer(report, { config, preview: o.preview !== false, workflow: o.workflow, noMark: o.noMark, indicators: getIndicatorMap() });
   const a = r.rootAttrs();
   return { type: 'render', html: r.source(), cls: a.cls, style: a.style, sid: o.sid };
 }
@@ -28,13 +28,13 @@ export function init(frameEl, controls) {
   });
   frame.src = '/preview.html';
   new ResizeObserver(() => { if (zoomMode === 'fit') applyZoom(); }).observe(frame.parentElement);
-  on((kind) => { if (kind === 'select') highlight(); else if (kind !== 'status') push(); });
+  on((kind) => { if (kind === 'select') highlight(); else push(); });
 }
 
 export const push = debounce(() => {
   if (!ready || !store.report) return;
   const sid = store.sel.kind === 'section' ? store.sel.id : null;
-  frame.contentWindow.postMessage(Object.assign(renderPayload(store.report, { sid }), { zoom: currentZoom() }), '*');
+  frame.contentWindow.postMessage(Object.assign(renderPayload(store.report, { sid, workflow: store.workflow }), { zoom: currentZoom() }), '*');
 }, 140);
 
 export function highlight() {

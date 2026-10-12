@@ -317,7 +317,7 @@
       const lightCover = t.cover === 'hero' || t.cover === 'split';
       const meta = [report.employee && `<div><span>إعداد</span><b>${E(report.employee)}</b></div>`, report.department && `<div><span>الإدارة / القسم</span><b>${E(report.department)}</b></div>`, report.date && `<div><span>التاريخ</span><b><bdi>${E(report.date)}</bdi></b></div>`].filter(Boolean).join('');
       return `<div class="cover-src cv-${escRaw(t.cover)}">
-        <div class="cv-top">${logoHtml('cv-logo', { light: lightCover })}<div class="cv-org"><strong>${E(cfg.orgName)}</strong><span>${E(cfg.orgSubName)}</span></div></div>
+        <div class="cv-top">${logoHtml('cv-logo', { light: lightCover })}<div class="cv-org"><strong>${E(cfg.orgName)}</strong><span>${E(cfg.orgSubName)}</span></div>${ctx.noMark || (ctx.workflow && ctx.workflow.status === 'approved') ? '' : '<div class="cv-unap" role="note">غير معتمد</div>'}</div>
         <div class="cv-main">${ctx.workflow && ctx.workflow.status === 'approved' ? '<div class="ribbon ok">معتمد</div>' : report.sample ? '<div class="ribbon">بيانات تجريبية</div>' : ''}<small class="cv-kind">${E(t.name)}</small><h1>${E(report.title || 'عنوان التقرير')}</h1>${report.subtitle ? `<p class="cv-sub">${E(report.subtitle)}</p>` : ''}${report.period ? `<p class="cv-period">${E(report.period)}</p>` : ''}</div>
         <div class="cv-meta">${meta}</div>${iconUrl(opts.coverIcon, 'plain') ? `<img class="cv-icon" src="${iconUrl(opts.coverIcon, 'plain')}" alt="">` : ''}${patternHtml('cv-pattern', t.cover === 'hero')}</div>`;
     }
