@@ -24,6 +24,10 @@ async function api(method, path, body, retry = true) {
   return text ? JSON.parse(text) : {};
 }
 
+// The app treats a report without version 2 as the legacy v1 format and migrates it (dropping palette,
+// period, callouts...). Agents always send the v2 shape, so stamp it here.
+const v2 = (r) => Object.assign({}, r, { version: 2 });
+
 const SECTION_SCHEMA = `Report JSON: { template, title (required), subtitle, period, employee, department, date "YYYY-MM-DD",
 palette (${Object.keys(T.PALETTES).join('|')}), options {cover, toc, closing, header, pageNumbers, margins narrow|normal|wide, arabicDigits},
 sections: [ { type, title, icon, visible, width full|half, source, asOf "YYYY-MM-DD", content } ] }
@@ -54,10 +58,10 @@ const TOOLS = [
     run: () => api('GET', '/api/indicators') },
   { name: 'create_report', description: 'Create a new DRAFT report. Returns id and view URL.\n\n' + SECTION_SCHEMA,
     inputSchema: { type: 'object', properties: { report: { type: 'object' } }, required: ['report'] },
-    run: async (a) => { const r = await api('POST', '/api/reports', a.report); return Object.assign(r, { viewUrl: BASE + r.url }); } },
+    run: async (a) => { const r = await api('POST', '/api/reports', v2(a.report)); return Object.assign(r, { viewUrl: BASE + r.url }); } },
   { name: 'update_report', description: 'Replace a report\'s full content (send the whole report JSON, not a patch). Only works while it is a draft/returned.',
     inputSchema: { type: 'object', properties: { id: { type: 'string' }, report: { type: 'object' } }, required: ['id', 'report'] },
-    run: async (a) => { const r = await api('PUT', '/api/reports/' + encodeURIComponent(a.id), a.report); return Object.assign(r, { viewUrl: BASE + r.url }); } },
+    run: async (a) => { const r = await api('PUT', '/api/reports/' + encodeURIComponent(a.id), v2(a.report)); return Object.assign(r, { viewUrl: BASE + r.url }); } },
   { name: 'get_report', description: 'Read a report\'s full JSON (to review or edit it).', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
     run: (a) => api('GET', '/api/reports/' + encodeURIComponent(a.id)) },
   { name: 'list_reports', description: 'List reports owned by the MCP account.', inputSchema: { type: 'object', properties: {} },

@@ -34,6 +34,12 @@ const call = async (name, args) => { const r = (await rpc('tools/call', { name, 
   assert.strictEqual((await call('get_report', { id: made.id })).subtitle, 'تعديل');
   assert((await call('list_reports')).some((r) => r.id === made.id), 'list');
 
+  // agent-shaped report WITHOUT version must keep palette, period and callout (legacy-migration trap)
+  const raw = await call('create_report', { report: { title: '[MCP selftest] بدون رقم إصدار', palette: 'navy', period: 'سبتمبر', sections: [{ type: 'callout', title: 'تنبيه', content: { tone: 'warn', text: 'اختبار' } }] } });
+  const rb = await call('get_report', { id: raw.id });
+  assert.strictEqual(rb.palette, 'navy'); assert.strictEqual(rb.period, 'سبتمبر');
+  assert.strictEqual(rb.sections[0].type, 'callout'); assert.strictEqual(rb.sections[0].content.text, 'اختبار');
+
   const bad = (await rpc('tools/call', { name: 'create_report', arguments: { report: { title: '' } } })).result;
   assert(bad.isError, 'empty title must fail');
   console.log('PASS — draft report:', made.viewUrl);
